@@ -9,52 +9,31 @@ export default function ProcessedClothingImage({
   src: string;
   alt: string;
 }) {
-
   return (
-
     <div
-      className="
-      relative
-      w-full
-      h-72
-      flex
-      items-center
-      justify-center
-      overflow-hidden
-      rounded-2xl
-      bg-zinc-900
-      "
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+      }}
     >
-
-      {/* CUADRICULA */}
-     <div
-  className="
-  relative
-  w-full
-  h-72
-  flex
-  items-center
-  justify-center
-  overflow-hidden
-  rounded-2xl
-  bg-zinc-950
-  "
-></div>
-
       <Image
         src={src}
         alt={alt}
         fill
         unoptimized
-        className="
-        object-contain
-        p-4
-        hover:scale-105
-        transition
-        duration-300
-        "
+        style={{
+          objectFit: "contain",
+          padding: "16px",
+          transition: "transform 0.4s ease",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLImageElement).style.transform = "scale(1.05)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLImageElement).style.transform = "scale(1)";
+        }}
       />
-
     </div>
   );
 }
