@@ -332,22 +332,24 @@ export default function Home() {
     }
   };
 
- // ── ELIMINAR PRENDA ──
-// Cambiamos el tipo del parámetro 'item' para ser más flexible y compatible
-async function deleteClothing(item: { id: string | number; [key: string]: any }) {
-  if (!item.id) return; // Validación de seguridad
+// ── ELIMINAR PRENDA ──
+  // Usamos 'any' en el parámetro para evitar conflictos con el tipo ClothingItem estricto
+  async function deleteClothing(item: any) {
+    if (!item?.id) return; 
 
-  const { error } = await supabase
-    .from("clothes")
-    .delete()
-    .eq("id", item.id);
+    const { error } = await supabase
+      .from("clothes")
+      .delete()
+      .eq("id", item.id);
 
-  if (!error) {
-    setClothes((prev) => prev.filter((c) => c.id !== item.id));
-    setViewerOpen(false);
-    setSelectedClothing(null);
+    if (!error) {
+      setClothes((prev) => prev.filter((c) => c.id !== item.id));
+      setViewerOpen(false);
+      setSelectedClothing(null);
+    } else {
+      console.error("Error al eliminar:", error);
+    }
   }
-}
 
   return (
     <main 
