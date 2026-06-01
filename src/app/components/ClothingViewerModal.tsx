@@ -4,31 +4,29 @@ import Image from "next/image";
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useState } from "react";
 
+type ClothingViewerModalClothing = {
+  id: string | number;
+  title?: string | null;
+  category?: string | null;
+  image?: string | null;
+  type?: string | null;
+  color?: string | null;
+  style?: string | null;
+  season?: string | null;
+  fabric?: string | null;
+  fit?: string | null;
+  occasion?: string | null;
+  formality?: string | null;
+  description?: string | null;
+  details?: string | null;
+  tags?: string[] | null;
+};
+
 type ClothingViewerModalProps = {
   open: boolean;
-  clothing?: {
-    id?: string | number;
-    title?: string | null;
-    category?: string | null;
-    image?: string | null;
-    type?: string | null;
-    color?: string | null;
-    style?: string | null;
-    season?: string | null;
-    fabric?: string | null;
-    fit?: string | null;
-    occasion?: string | null;
-    formality?: string | null;
-    description?: string | null;
-    details?: string | null;
-    tags?: string[] | null;
-  } | null;
+  clothing: ClothingViewerModalClothing | null;
   onClose: () => void;
-  onDelete: (item: {
-    id?: string | number;
-    title?: string | null;
-    image?: string | null;
-  }) => void;
+  onDelete: (item: ClothingViewerModalClothing) => void;
 };
 
 export default function ClothingViewerModal(props: ClothingViewerModalProps) {
