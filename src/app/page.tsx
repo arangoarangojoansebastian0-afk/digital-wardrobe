@@ -31,9 +31,27 @@ type ClothingAnalysis = {
   formality: string;
 };
 
+type ClothingItem = {
+  id: string | number;
+  title?: string | null;
+  category?: string | null;
+  image?: string | null;
+  type?: string | null;
+  color?: string | null;
+  style?: string | null;
+  season?: string | null;
+  tags?: string[] | null;
+  description?: string | null;
+  details?: string | null;
+  fabric?: string | null;
+  fit?: string | null;
+  occasion?: string | null;
+  formality?: string | null;
+};
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("armario");
-  const [clothes, setClothes] = useState<any[]>([]);
+  const [clothes, setClothes] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
@@ -56,25 +74,39 @@ export default function Home() {
   const [analyzingClothing, setAnalyzingClothing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [selectedClothing, setSelectedClothing] = useState<any>(null);
+  const [selectedClothing, setSelectedClothing] = useState<ClothingItem | null>(null);
 
-  const categories = [...new Set(clothes.map((item: any) => item.category))];
+  // Estado auxiliar para detectar si es pantalla móvil en el frontend
+  const [isMobile, setIsMobile] = useState(false);
 
-  // ── CARGAR PRENDAS AL INICIAR ──
   useEffect(() => {
-    loadClothes();
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize(); // Evaluar al montar
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const loadClothes = async () => {
+  const categories = [...new Set(clothes.map((item) => item.category || "Sin categoría"))];
+
+  async function loadClothes() {
     setLoading(true);
     const { data, error } = await supabase
       .from("clothes")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error && data) setClothes(data);
+    if (!error && data) setClothes(data as ClothingItem[]);
     setLoading(false);
-  };
+  }
+
+  // ── CARGAR PRENDAS AL INICIAR ──
+  useEffect(() => {
+    (async () => {
+      await loadClothes();
+    })();
+  }, []);
 
   // ── SUBIR IMAGEN A STORAGE ──
   const uploadImage = async (file: File): Promise<string> => {
@@ -238,7 +270,6 @@ export default function Home() {
     try {
       let imageUrl = pendingImage;
 
-      // Si hay archivo lo sube a Storage
       if (pendingFile) {
         imageUrl = await uploadImage(pendingFile);
       }
@@ -303,7 +334,7 @@ export default function Home() {
   };
 
   // ── ELIMINAR PRENDA ──
-  const deleteClothing = async (item: any) => {
+  async function deleteClothing(item: ClothingItem) {
     const { error } = await supabase
       .from("clothes")
       .delete()
@@ -317,34 +348,68 @@ export default function Home() {
   };
 
   return (
-    <main style={{ display: "flex", minHeight: "100vh", background: "var(--surface)", color: "var(--text-primary)" }}>
+    <main 
+      style={{ 
+        display: "flex", 
+        // Cambia la orientación a columna en móviles si quieres mandar la barra arriba, 
+        // o mantenlo en fila (row) ya que al estar colapsada ocupa poquísimo espacio.
+        flexDirection: "row", 
+        minHeight: "100vh", 
+        background: "var(--surface)", 
+        color: "var(--text-primary)",
+        maxWidth: "100vw",
+        overflowX: "hidden"
+      }}
+    >
 
       <Sidebar active={activeTab} onChange={setActiveTab} />
 
-      <section style={{ flex: 1, padding: "48px 52px", overflowX: "hidden" }}>
+      {/* SECCIÓN PRINCIPAL ADAPTABLE */}
+      <section 
+        style={{ 
+          flex: 1, 
+          // Reducimos radicalmente el padding excesivo cuando se visualiza en celular (20px en móvil vs 48px/52px en PC)
+          padding: isMobile ? "24px 16px" : "48px 52px", 
+          overflowX: "hidden",
+          minWidth: 0 // Evita que elementos internos sincrónicos empujen el layout hacia la derecha
+        }}
+      >
 
         {/* ===== ARMARIO ===== */}
         {activeTab === "armario" && (
           <>
-            <div style={{ marginBottom: "52px" }}>
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "6px" }}>
+            <div style={{ marginBottom: isMobile ? "32px" : "52px" }}>
+              <div 
+                style={{ 
+                  display: "flex", 
+                  // En celular los contadores de estadísticas pasan abajo del título para que quepa todo de frente
+                  flexDirection: isMobile ? "column" : "row",
+                  alignItems: isMobile ? "flex-start" : "flex-end", 
+                  justifyContent: "space-between", 
+                  gap: isMobile ? "20px" : "0px",
+                  marginBottom: "6px" 
+                }}
+              >
                 <div>
                   <div style={{ fontSize: "10px", letterSpacing: "0.35em", textTransform: "uppercase", color: "var(--gold-dim)", marginBottom: "8px", fontFamily: "var(--font-body)" }}>
                     Colección Personal
                   </div>
-                  <h1 style={{ fontFamily: "var(--font-display)", fontSize: "52px", fontWeight: 300, lineHeight: 1, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
+                  {/* El título principal se reduce de tamaño en celulares para que no se corte */}
+                  <h1 style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "36px" : "52px", fontWeight: 300, lineHeight: 1, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
                     Mi Armario
                   </h1>
                 </div>
-                <div style={{ display: "flex", gap: "32px", paddingBottom: "4px" }}>
+                
+                {/* Panel de estadísticas autoajustable */}
+                <div style={{ display: "flex", gap: isMobile ? "20px" : "32px", paddingBottom: "4px", width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-end" }}>
                   {[
                     { num: clothes.length, label: "Prendas" },
                     { num: categories.length, label: "Categorías" },
                     { num: 0, label: "Outfits" },
                   ].map((stat) => (
-                    <div key={stat.label} style={{ textAlign: "right" }}>
-                      <div style={{ fontFamily: "var(--font-display)", fontSize: "32px", fontWeight: 300, color: "var(--gold)", lineHeight: 1 }}>{stat.num}</div>
-                      <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: "4px" }}>{stat.label}</div>
+                    <div key={stat.label} style={{ textAlign: isMobile ? "left" : "right" }}>
+                      <div style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "24px" : "32px", fontWeight: 300, color: "var(--gold)", lineHeight: 1 }}>{stat.num}</div>
+                      <div style={{ fontSize: "9px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: "4px" }}>{stat.label}</div>
                     </div>
                   ))}
                 </div>
@@ -354,14 +419,14 @@ export default function Home() {
 
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: "20px", fontWeight: 300, color: "var(--text-muted)", fontStyle: "italic" }}>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: "18px", fontWeight: 300, color: "var(--text-muted)", fontStyle: "italic" }}>
                   Cargando armario...
                 </div>
               </div>
             ) : clothes.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "40vh", textAlign: "center" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.3 }}>✦</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: "28px", fontWeight: 300, fontStyle: "italic", color: "var(--text-secondary)", marginBottom: "8px" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "40vh", textAlign: "center", padding: "0 20px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "16px", opacity: 0.3 }}>✦</div>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: "24px", fontWeight: 300, fontStyle: "italic", color: "var(--text-secondary)", marginBottom: "8px" }}>
                   Tu armario está vacío
                 </div>
                 <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
@@ -369,13 +434,13 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <div>
+              <div style={{ width: "100%" }}>
                 {categories.map((cat) => (
                   <ClothingSlider
                     key={cat}
                     title={cat}
-                    items={clothes.filter((item: any) => item.category === cat)}
-                    onItemClick={(item: any) => {
+                    items={clothes.filter((item) => item.category === cat)}
+                    onItemClick={(item) => {
                       setSelectedClothing(item);
                       setViewerOpen(true);
                     }}
@@ -388,8 +453,8 @@ export default function Home() {
 
         {/* ===== OUTFITS ===== */}
         {activeTab === "outfits" && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", textAlign: "center" }}>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: "48px", fontWeight: 300, fontStyle: "italic", color: "var(--text-primary)", marginBottom: "12px" }}>Outfits</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", textAlign: "center", padding: "0 20px" }}>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "32px" : "48px", fontWeight: 300, fontStyle: "italic", color: "var(--text-primary)", marginBottom: "12px" }}>Outfits</div>
             <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>Próximamente — Crea combinaciones con tu ropa</div>
           </div>
         )}
@@ -401,8 +466,8 @@ export default function Home() {
 
         {/* ===== FAVORITOS ===== */}
         {activeTab === "favoritos" && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", textAlign: "center" }}>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: "48px", fontWeight: 300, fontStyle: "italic", color: "var(--text-primary)", marginBottom: "12px" }}>Favoritos</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", textAlign: "center", padding: "0 20px" }}>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "32px" : "48px", fontWeight: 300, fontStyle: "italic", color: "var(--text-primary)", marginBottom: "12px" }}>Favoritos</div>
             <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>Aquí aparecerán tus prendas favoritas</div>
           </div>
         )}
@@ -412,7 +477,7 @@ export default function Home() {
           <>
             <div style={{ marginBottom: "40px" }}>
               <div style={{ fontSize: "10px", letterSpacing: "0.35em", textTransform: "uppercase", color: "var(--gold-dim)", marginBottom: "8px" }}>Configuración</div>
-              <h1 style={{ fontFamily: "var(--font-display)", fontSize: "48px", fontWeight: 300, color: "var(--text-primary)" }}>Ajustes</h1>
+              <h1 style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "32px" : "48px", fontWeight: 300, color: "var(--text-primary)" }}>Ajustes</h1>
               <div style={{ marginTop: "20px", height: "1px", background: "linear-gradient(90deg, var(--gold) 0%, rgba(201,168,76,0.1) 40%, transparent 100%)" }} />
             </div>
             <SettingsPanel />

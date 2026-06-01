@@ -18,9 +18,35 @@ export default function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [section, setSection] = useState("perfil");
-  const [selectedColor, setSelectedColor] = useState("#C9A84C");
+  const [selectedColor, setSelectedColor] = useState(() => {
+    if (typeof window === "undefined") return "#C9A84C";
+    return localStorage.getItem("accent-color") || "#C9A84C";
+  });
+
+  function applyColorStyle(color: string) {
+    const found = ACCENT_COLORS.find((c) => c.color === color);
+    if (!found) return;
+    document.documentElement.style.setProperty("--gold", found.color);
+    document.documentElement.style.setProperty("--gold-dim", found.dim);
+    document.documentElement.style.setProperty("--gold-light", found.color + "CC");
+  }
+
+  function applyColor(color: string, save = true) {
+    setSelectedColor(color);
+    applyColorStyle(color);
+    if (save) localStorage.setItem("accent-color", color);
+  }
+
+  // Estado para adaptar la vista a celulares
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         const n = user.user_metadata?.full_name || "";
@@ -30,20 +56,10 @@ export default function SettingsPanel() {
       }
     });
 
-    // Cargar color guardado
-    const saved = localStorage.getItem("accent-color");
-    if (saved) applyColor(saved, false);
-  }, []);
+    applyColorStyle(selectedColor);
 
-  const applyColor = (color: string, save = true) => {
-    setSelectedColor(color);
-    const found = ACCENT_COLORS.find((c) => c.color === color);
-    if (!found) return;
-    document.documentElement.style.setProperty("--gold", found.color);
-    document.documentElement.style.setProperty("--gold-dim", found.dim);
-    document.documentElement.style.setProperty("--gold-light", found.color + "CC");
-    if (save) localStorage.setItem("accent-color", color);
-  };
+    return () => window.removeEventListener("resize", handleResize);
+  }, [selectedColor]);
 
   const saveName = async () => {
     setSaving(true);
@@ -76,16 +92,63 @@ export default function SettingsPanel() {
     fontWeight: 300,
     outline: "none",
     marginBottom: "12px",
+    boxSizing: "border-box",
   };
 
   return (
-    <div style={{ display: "flex", gap: "28px", maxWidth: "860px" }}>
+    <div 
+      style={{ 
+        display: "flex", 
+        flexDirection: isMobile ? "column" : "row", // Cambia a columna en móviles
+        gap: isMobile ? "16px" : "28px", 
+        width: "100%",
+        maxWidth: "860px",
+        padding: isMobile ? "16px" : "0px",
+        boxSizing: "border-box"
+      }}
+    >
 
-      {/* MENÚ LATERAL */}
-      <div style={{ width: "180px", flexShrink: 0, background: "var(--surface-2)", borderRadius: "12px", border: "1px solid var(--border-subtle)", padding: "8px", height: "fit-content" }}>
+      {/* MENÚ LATERAL / BARRA SUPERIOR EN MÓVIL */}
+      <div 
+        style={{ 
+          width: isMobile ? "100%" : "180px", 
+          display: isMobile ? "flex" : "block", // Distribución horizontal en móvil
+          gap: isMobile ? "8px" : "0px",
+          flexShrink: 0, 
+          background: "var(--surface-2)", 
+          borderRadius: "12px", 
+          border: "1px solid var(--border-subtle)", 
+          padding: "8px", 
+          height: "fit-content",
+          boxSizing: "border-box",
+          overflowX: isMobile ? "auto" : "visible" // Por si añades más pestañas en el futuro
+        }}
+      >
         {sections.map((s) => (
-          <button key={s.id} onClick={() => setSection(s.id)}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", padding: "11px 14px", borderRadius: "8px", border: "none", borderLeft: section === s.id ? "2px solid var(--gold)" : "2px solid transparent", background: section === s.id ? "rgba(201,168,76,0.08)" : "transparent", color: section === s.id ? "var(--gold)" : "var(--text-secondary)", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: section === s.id ? 400 : 300, textAlign: "left", transition: "all 0.2s" }}
+          <button 
+            key={s.id} 
+            onClick={() => setSection(s.id)}
+            style={{ 
+              width: isMobile ? "100%" : "100%", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: isMobile ? "center" : "flex-start",
+              gap: "10px", 
+              padding: "11px 14px", 
+              borderRadius: "8px", 
+              border: "none", 
+              borderLeft: isMobile ? "none" : (section === s.id ? "2px solid var(--gold)" : "2px solid transparent"), 
+              borderBottom: isMobile ? (section === s.id ? "2px solid var(--gold)" : "2px solid transparent") : "none",
+              background: section === s.id ? "rgba(201,168,76,0.08)" : "transparent", 
+              color: section === s.id ? "var(--gold)" : "var(--text-secondary)", 
+              cursor: "pointer", 
+              fontFamily: "var(--font-body)", 
+              fontSize: "13px", 
+              fontWeight: section === s.id ? 400 : 300, 
+              textAlign: "left", 
+              transition: "all 0.2s",
+              whiteSpace: "nowrap"
+            }}
           >
             <span style={{ fontSize: "10px" }}>{s.icon}</span>
             {s.label}
@@ -94,7 +157,17 @@ export default function SettingsPanel() {
       </div>
 
       {/* CONTENIDO */}
-      <div style={{ flex: 1, background: "var(--surface-2)", border: "1px solid var(--border-subtle)", borderRadius: "12px", padding: "28px" }}>
+      <div 
+        style={{ 
+          flex: 1, 
+          width: "100%",
+          background: "var(--surface-2)", 
+          border: "1px solid var(--border-subtle)", 
+          borderRadius: "12px", 
+          padding: isMobile ? "20px" : "28px",
+          boxSizing: "border-box"
+        }}
+      >
 
         {/* ===== PERFIL ===== */}
         {section === "perfil" && (
@@ -105,9 +178,9 @@ export default function SettingsPanel() {
               <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "linear-gradient(135deg, var(--gold-dim), var(--gold))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", fontWeight: 500, color: "var(--surface)", fontFamily: "var(--font-display)", flexShrink: 0 }}>
                 {initial}
               </div>
-              <div>
-                <div style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: 400 }}>{name || "Sin nombre"}</div>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "3px" }}>{email}</div>
+              <div style={{ minWidth: 0, overflow: "hidden" }}>
+                <div style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name || "Sin nombre"}</div>
+                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{email}</div>
               </div>
             </div>
 
@@ -127,7 +200,7 @@ export default function SettingsPanel() {
             )}
 
             <button onClick={saveName} disabled={saving}
-              style={{ background: saving ? "var(--gold-dim)" : "var(--gold)", border: "none", borderRadius: "10px", padding: "13px 24px", color: "var(--surface)", fontSize: "12px", fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", cursor: saving ? "not-allowed" : "pointer", fontFamily: "var(--font-body)", transition: "all 0.2s" }}
+              style={{ width: isMobile ? "100%" : "auto", background: saving ? "var(--gold-dim)" : "var(--gold)", border: "none", borderRadius: "10px", padding: "13px 24px", color: "var(--surface)", fontSize: "12px", fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", cursor: saving ? "not-allowed" : "pointer", fontFamily: "var(--font-body)", transition: "all 0.2s" }}
             >
               {saving ? "Guardando..." : "Guardar cambios"}
             </button>
@@ -141,7 +214,7 @@ export default function SettingsPanel() {
 
             {/* COLORES */}
             <label style={{ fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", display: "block", marginBottom: "16px" }}>Color de acento</label>
-            <div style={{ display: "flex", gap: "14px", marginBottom: "32px" }}>
+            <div style={{ display: "flex", gap: "14px", marginBottom: "32px", flexWrap: "wrap" }}>
               {ACCENT_COLORS.map((c) => (
                 <button
                   key={c.name}
@@ -164,19 +237,19 @@ export default function SettingsPanel() {
             {/* PREVIEW */}
             <div style={{ padding: "16px 20px", background: "var(--surface-3)", border: "1px solid var(--border-subtle)", borderRadius: "10px", marginBottom: "32px" }}>
               <div style={{ fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "10px" }}>Vista previa</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
                 <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "linear-gradient(135deg, var(--gold-dim), var(--gold))", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--surface)", fontWeight: 600, fontSize: "14px" }}>A</div>
                 <div>
                   <div style={{ fontSize: "14px", color: "var(--gold)", fontFamily: "var(--font-display)", fontWeight: 400 }}>Armario Digital</div>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Color activo</div>
                 </div>
-                <div style={{ marginLeft: "auto", padding: "6px 14px", background: "var(--gold)", borderRadius: "20px", fontSize: "11px", color: "var(--surface)", fontWeight: 500 }}>Activo</div>
+                <div style={{ marginLeft: isMobile ? "0px" : "auto", padding: "6px 14px", background: "var(--gold)", borderRadius: "20px", fontSize: "11px", color: "var(--surface)", fontWeight: 500 }}>Activo</div>
               </div>
             </div>
 
             {/* MODO */}
             <label style={{ fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", display: "block", marginBottom: "14px" }}>Modo</label>
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: "10px" }}>
               {[
                 { id: "oscuro", label: "Oscuro", bg: "#0E0E0F" },
                 { id: "claro",  label: "Claro",  bg: "#F5F5F0" },
@@ -213,6 +286,7 @@ export default function SettingsPanel() {
                     color: "var(--text-primary)",
                     cursor: "pointer", fontSize: "13px",
                     fontFamily: "var(--font-body)", transition: "all 0.2s",
+                    justifyContent: isMobile ? "center" : "flex-start"
                   }}
                   onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--gold-dim)"}
                   onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-subtle)"}
@@ -232,14 +306,14 @@ export default function SettingsPanel() {
 
             <div style={{ padding: "16px 20px", background: "var(--surface-3)", border: "1px solid var(--border-subtle)", borderRadius: "10px", marginBottom: "28px" }}>
               <div style={{ fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>Correo</div>
-              <div style={{ fontSize: "14px", color: "var(--text-primary)" }}>{email}</div>
+              <div style={{ fontSize: "14px", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis" }}>{email}</div>
             </div>
 
             <div style={{ paddingTop: "24px", borderTop: "1px solid var(--border-subtle)" }}>
               <div style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "16px" }}>Sesión activa</div>
               <button
                 onClick={handleLogout}
-                style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "10px", padding: "13px 24px", color: "#FCA5A5", fontSize: "12px", letterSpacing: "0.15em", textTransform: "uppercase", cursor: "pointer", fontFamily: "var(--font-body)", transition: "all 0.2s" }}
+                style={{ width: isMobile ? "100%" : "auto", background: "transparent", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "10px", padding: "13px 24px", color: "#FCA5A5", fontSize: "12px", letterSpacing: "0.15em", textTransform: "uppercase", cursor: "pointer", fontFamily: "var(--font-body)", transition: "all 0.2s", display: "block", textAlign: "center" }}
                 onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"}
                 onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.background = "transparent"}
               >

@@ -2,6 +2,44 @@
 
 import Image from "next/image";
 
+type ClothingEditorModalProps = {
+  open: boolean;
+  image: string;
+  title: string;
+  setTitle: (value: string) => void;
+  category: string;
+  setCategory: (value: string) => void;
+  newCategory: string;
+  setNewCategory: (value: string) => void;
+  categories: string[];
+  type: string;
+  setType: (value: string) => void;
+  color: string;
+  setColor: (value: string) => void;
+  style: string;
+  setStyle: (value: string) => void;
+  season: string;
+  setSeason: (value: string) => void;
+  tags: string;
+  setTags: (value: string) => void;
+  description: string;
+  setDescription: (value: string) => void;
+  details: string;
+  setDetails: (value: string) => void;
+  fabric: string;
+  setFabric: (value: string) => void;
+  fit: string;
+  setFit: (value: string) => void;
+  occasion: string;
+  setOccasion: (value: string) => void;
+  formality: string;
+  setFormality: (value: string) => void;
+  analyzing: boolean;
+  analysisError: string;
+  onSave: () => void;
+  onClose: () => void;
+};
+
 export default function ClothingEditorModal({
   open,
   image,
@@ -38,7 +76,7 @@ export default function ClothingEditorModal({
   analysisError,
   onSave,
   onClose,
-}: any) {
+}: ClothingEditorModalProps) {
   if (!open) return null;
 
   const categoryOptions = category && !categories.includes(category)

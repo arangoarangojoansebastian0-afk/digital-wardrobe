@@ -6,7 +6,7 @@ type ChatMessage = {
 };
 
 type ClothingItem = {
-  id?: string | number;
+  id: string | number;
   title?: string | null;
   category?: string | null;
   image?: string | null;
@@ -21,6 +21,14 @@ type ClothingItem = {
   occasion?: string | null;
   formality?: string | null;
   tags?: string[] | null;
+  is_available?: boolean; 
+};
+
+type RequestContext = {
+  mood?: string;             
+  city?: string;             
+  temperature?: string;      
+  disliked_colors?: string[]; 
 };
 
 type GeminiResponse = {
@@ -47,7 +55,7 @@ type GeminiContent = {
 };
 
 const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
-const MAX_WARDROBE_IMAGES = 12;
+const MAX_WARDROBE_IMAGES = 3;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 function cleanText(value: unknown) {
@@ -83,9 +91,11 @@ function normalizeClothes(clothes: unknown): ClothingItem[] {
       const category = cleanText(clothing.category);
 
       if (!title && !category) return null;
+      if (clothing.is_available === false) return null;
 
+      // Conservamos absolutamente todos los campos enriquecidos generados por tu análisis
       const normalized: ClothingItem = {
-        id: clothing.id,
+        id: clothing.id || Math.random().toString(),
         title: title || "Prenda sin nombre",
         category: category || "Sin categoria",
         image: cleanText(clothing.image),
@@ -111,7 +121,9 @@ function normalizeClothes(clothes: unknown): ClothingItem[] {
 }
 
 function describeClothing(item: ClothingItem, index: number) {
+  // Aquí garantizamos que la IA lea cada uno de los campos que rellenó tu análisis previo
   const details = [
+    `ID: ${item.id}`,
     item.category && `categoria: ${item.category}`,
     item.type && `tipo: ${item.type}`,
     item.color && `color: ${item.color}`,
@@ -126,95 +138,61 @@ function describeClothing(item: ClothingItem, index: number) {
     item.tags?.length ? `tags: ${item.tags.join(", ")}` : "",
   ].filter(Boolean);
 
-  return `${index + 1}. ${item.title}${details.length ? ` (${details.join("; ")})` : ""}`;
-}
-
-function isHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
-
-async function imageUrlToPart(item: ClothingItem, index: number): Promise<GeminiPart[]> {
-  const imageUrl = cleanText(item.image);
-  if (!imageUrl || !isHttpUrl(imageUrl)) return [];
-
-  try {
-    const response = await fetch(imageUrl);
-    if (!response.ok) return [];
-
-    const mimeType = response.headers.get("content-type")?.split(";")[0] || "image/png";
-    if (!mimeType.startsWith("image/")) return [];
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.byteLength > MAX_IMAGE_BYTES) return [];
-
-    return [
-      { text: `Imagen ${index + 1}: ${item.title} (${item.category || "Sin categoria"})` },
-      {
-        inline_data: {
-          mime_type: mimeType,
-          data: buffer.toString("base64"),
-        },
-      },
-    ];
-  } catch (error) {
-    console.warn(`No se pudo adjuntar imagen de ${item.title}:`, error);
-    return [];
-  }
+  return `${index + 1}. '${item.title}' (${details.join("; ")})`;
 }
 
 function buildWardrobeContext(clothes: ClothingItem[]) {
   if (clothes.length === 0) {
-    return "ARMARIO DEL USUARIO: no hay prendas registradas todavia.";
+    return "ARMARIO DEL USUARIO: No tienes prendas limpias o registradas en este momento.";
   }
 
-  const categories = clothes.reduce<Record<string, number>>((acc, item) => {
-    const category = item.category || "Sin categoria";
-    acc[category] = (acc[category] || 0) + 1;
-    return acc;
-  }, {});
-
   return [
-    `ARMARIO DEL USUARIO (${clothes.length} prendas):`,
-    `Categorias disponibles: ${Object.entries(categories)
-      .map(([category, count]) => `${category} (${count})`)
-      .join(", ")}.`,
-    "Inventario exacto:",
+    "ARMARIO DISPONIBLE (Solo prendas limpias):",
+    "Inventario exacto con especificaciones analizadas:",
     clothes.map(describeClothing).join("\n"),
   ].join("\n");
 }
 
-function buildSystemPrompt(clothes: ClothingItem[]) {
-  return `Eres Stylist, una estilista personal experta. Hablas siempre en espanol claro, natural y elegante.
+function buildSystemPrompt(clothes: ClothingItem[], appCtx: RequestContext) {
+  const ciudad = appCtx.city || "Medellín, Colombia";
+  const clima = appCtx.temperature || "Templado (24°C)";
+  const animo = appCtx.mood ? `El usuario prefiere un enfoque de estilo: ${appCtx.mood}.` : "Estilo libre, urbano y vanguardista.";
+  const restricciones = appCtx.disliked_colors?.length 
+    ? `PROHIBIDO sugerir los siguientes colores porque al usuario le chocan: ${appCtx.disliked_colors.join(", ")}.`
+    : "";
+
+  return `Eres el motor de Inteligencia Artificial de "Armario Digital", un Stylist de moda personal, vanguardista, directo y con mucha actitud. Tu trabajo es armar outfits brutales basados en el inventario real disponible del usuario y recomendar compras estratégicas.
+
+CONTEXTO ACTUAL DEL ENTORNO EN TIEMPO REAL:
+- Ubicación del usuario: ${ciudad}
+- Clima / Temperatura actual: ${clima}
+- Enfoque de estilo seleccionado: ${animo}
+${restricciones}
 
 ${buildWardrobeContext(clothes)}
 
-Reglas importantes:
-- Responde de forma conversacional: pregunta lo necesario si faltan datos de ocasion, clima, hora o nivel de formalidad.
-- Antes de recomendar, revisa el inventario y usa prendas concretas del armario. Menciona sus nombres exactos.
-- No inventes prendas que no aparecen en el inventario. Si hace falta una pieza externa, separala bajo "Para completar".
-- Si el usuario pide "con mis jeans", "algo frio", "para cena" o algo ambiguo, infiere con cuidado desde categorias, colores, estilos y temporadas.
-- Usa tambien descripcion, detalles visibles, tela, silueta, ocasion y formalidad cuando existan.
-- Si hay pocas prendas o datos incompletos, ofrece la mejor combinacion posible y explica que dato falta.
-- Da maximo 2 outfits por respuesta salvo que el usuario pida mas.
-- Formato recomendado: breve idea general, prendas exactas, por que funciona, ajuste opcional.
-- Evita sonar generica; cada respuesta debe demostrar que viste el armario disponible.`;
+REGLAS DE INTERACCIÓN Y SALUDOS:
+1. DETECTAR SALUDOS CORTOS: Si el usuario te envía un mensaje corto (ej: "Hola", "Buenas"), NO inventes un outfit. Saluda con actitud corta y pregunta para qué evento o plan se va a vestir aprovechando el clima actual de ${ciudad}.
+
+REGLAS DE COMPRAS Y ENLACES INTEGRADOS:
+2. CUÁNDO SUGERIR COMPRAS: Solo recomienda comprar si el usuario lo pide o si falta una pieza (superior o inferior) obligatoria para cerrar el look.
+3. CONTROL DE ENLACES LIMPIOS: Tienes prohibido usar sub-enlaces rotos. Usa únicamente estos dominios base en texto plano:
+   - H&M Colombia: [H&M: https://co.hm.com]
+   - Zara Colombia: [Zara: https://www.zara.com/co/]
+   - Bershka Colombia: [Bershka: https://www.bershka.com/co/]
+   - Amazon: [Amazon: https://www.amazon.com]
+
+REGLAS CRUCIALES DE OBLIGATORIEDAD Y FORMATO (ESTRICTAS):
+4. OUTFIT COMPLETO OBLIGATORIO: Cada propuesta debe incluir una pieza superior Y una inferior del armario. Prohibido dejar el look a medias.
+5. FORMATO PROHIBIDO (NO ASTERISCOS ni LISTAS): Está terminantemente prohibido usar doble asterisco (**) o guiones de listas. Escribe en texto plano y corrido usando párrafos dinámicos para móvil. Resalta las prendas usando comillas simples (ej: 'Camiseta negra oversize').
+6. INTEGRACIÓN DE METADATA PARA EL FRONTEND (ID TRACKING): Al final de tu propuesta de outfit, e inmediatamente después de cerrar tu párrafo, añade OBLIGATORIAMENTE un bloque JSON oculto pegado en una sola línea que contenga los IDs de las prendas que usaste para que el frontend pueda pintar sus fotos en el chat. Usa estrictamente este formato: JSON_IDS: {"upper": "ID", "lower": "ID", "outer": "ID"}`;
 }
 
-function buildAnalysisPrompt(clothes: ClothingItem[]) {
-  if (clothes.length === 0) {
-    return "No hay prendas para analizar. Indica al usuario que agregue prendas y ofrece una lista breve de basicos para empezar.";
-  }
-
-  return `Analiza el armario antes de responder:
-1. Identifica categorias disponibles y posibles huecos.
-2. Detecta prendas protagonistas y prendas comodin por color, estilo, temporada y tags.
-3. Elige combinaciones usando solo nombres exactos del inventario.
-4. Si falta algo, dilo como sugerencia externa, no como si ya existiera.`;
+function buildAnalysisPrompt() {
+  return `Guía de análisis mental antes de responder:
+1. Asegúrate de respetar los colores prohibidos y el enfoque de estilo del usuario si están definidos.
+2. Cruza el look de arriba y abajo basándote en la temperatura en vivo informada en el prompt del sistema y las especificaciones de las prendas.
+3. No dejes texto cortado y agrega siempre la línea final de JSON_IDS para los componentes visuales del chat.`;
 }
 
 function toGeminiContents(messages: ChatMessage[]): GeminiContent[] {
@@ -234,15 +212,46 @@ function toGeminiContents(messages: ChatMessage[]): GeminiContent[] {
     }));
 }
 
-async function buildVisualWardrobeContent(clothes: ClothingItem[]): Promise<GeminiContent | null> {
-  const parts: GeminiPart[] = [
-    {
-      text:
-        "Estas son imagenes reales de prendas del armario. Usalas para inferir color, textura, formalidad, silueta y combinaciones. No inventes prendas fuera de estas imagenes y el inventario.",
-    },
-  ];
+async function imageUrlToPart(item: any, index: number) {
+  if (!item.image) return [];
 
-  for (const [index, item] of clothes.slice(0, MAX_WARDROBE_IMAGES).entries()) {
+  try {
+    // 1. Obtener respuesta
+    const response = await fetch(item.image);
+    // 2. Obtener buffer (esto es el contenido de la imagen)
+    const arrayBuffer = await response.arrayBuffer();
+    // 3. Convertir a base64 de forma directa
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+
+    return [
+      { text: `Prenda ${index + 1}: ${item.title || 'Sin nombre'} (ID: ${item.id})` },
+      {
+        inlineData: {
+          data: base64Data,
+          mimeType: "image/png",
+        },
+      },
+    ];
+  } catch (e) {
+    console.error("Error procesando imagen:", e);
+    return [{ text: `Prenda ${index + 1}: ${item.title || 'Sin nombre'} (ID: ${item.id})` }];
+  }
+}
+
+
+async function buildVisualWardrobeContent(clothes: ClothingItem[], message: string): Promise<GeminiContent | null> {
+  // Solo procesamos imágenes si el usuario pregunta algo relacionado con "ver", "recomendar", "outfit" o "ponerse"
+  const needsVisuals = /recomendar|outfit|ponerse|vestir|combinar|ver/i.test(message);
+  
+  if (!needsVisuals) {
+    return null; // Ahorramos tiempo y recursos si es solo una charla casual
+  }
+
+  const parts: GeminiPart[] = [];
+  
+  const availableClothes = clothes.filter(c => c.is_available !== false);
+  
+  for (const [index, item] of availableClothes.slice(0, MAX_WARDROBE_IMAGES).entries()) {
     parts.push(...(await imageUrlToPart(item, index)));
   }
 
@@ -264,9 +273,9 @@ async function callGemini(model: string, systemPrompt: string, contents: GeminiC
         },
         contents,
         generationConfig: {
-          temperature: 0.45,
+          temperature: 0.25,
           topP: 0.9,
-          maxOutputTokens: 1100,
+          maxOutputTokens: 2200,
         },
       }),
     }
@@ -286,29 +295,23 @@ function extractGeminiText(data: GeminiResponse) {
 export async function POST(req: Request) {
   try {
     if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "Falta configurar GEMINI_API_KEY." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Falta configurar GEMINI_API_KEY." }, { status: 500 });
     }
 
     const body = await req.json();
     const messages = normalizeMessages(body?.messages);
+    const context: RequestContext = body?.context || {};
     const clothes = normalizeClothes(body?.clothes);
-    const visualWardrobeContent = await buildVisualWardrobeContent(clothes);
+    const visualWardrobeContent = await buildVisualWardrobeContent(clothes, messages[messages.length - 1].content);
     const contents = [
       ...(visualWardrobeContent ? [visualWardrobeContent] : []),
       ...toGeminiContents(messages),
     ];
-    const systemPrompt = `${buildSystemPrompt(clothes)}
-
-${buildAnalysisPrompt(clothes)}`;
+    
+    const systemPrompt = `${buildSystemPrompt(clothes, context)}\n\n${buildAnalysisPrompt()}`;
 
     if (contents.length === 0) {
-      return NextResponse.json(
-        { error: "Escribe un mensaje para tu stylist." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Escribe un mensaje para tu stylist." }, { status: 400 });
     }
 
     let lastError = "";
@@ -319,9 +322,7 @@ ${buildAnalysisPrompt(clothes)}`;
 
         if (response.ok) {
           const data = await response.json();
-          const text =
-            extractGeminiText(data) ||
-            "No pude generar una respuesta clara. Probemos con mas detalle de ocasion, clima o estilo.";
+          const text = extractGeminiText(data) || "No pude generar una respuesta clara.";
 
           return NextResponse.json({ message: text, model });
         }
@@ -340,16 +341,13 @@ ${buildAnalysisPrompt(clothes)}`;
 
     return NextResponse.json(
       {
-        error: "Gemini no pudo responder en este momento. Intenta de nuevo en unos segundos.",
+        error: "Gemini no pudo responder. Intenta de nuevo.",
         details: process.env.NODE_ENV === "development" ? lastError : undefined,
       },
       { status: 503 }
     );
   } catch (error) {
     console.error("Stylist route error:", error);
-    return NextResponse.json(
-      { error: "Error del servidor al hablar con Stylist." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Error del servidor." }, { status: 500 });
   }
 }

@@ -2,11 +2,24 @@
 
 import ClothingCard from "./ClothingCard";
 
+type ClothingItemSummary = {
+  id: string | number;
+  title?: string | null;
+  category?: string | null;
+  image?: string | null;
+};
+
+type ClothingSliderProps = {
+  title: string;
+  items: ClothingItemSummary[];
+  onItemClick: (item: ClothingItemSummary) => void;
+};
+
 export default function ClothingSlider({
   title,
   items,
   onItemClick,
-}: any) {
+}: ClothingSliderProps) {
   return (
     <section style={{ marginBottom: "56px" }}>
       {/* HEADER */}
@@ -79,7 +92,7 @@ export default function ClothingSlider({
           paddingBottom: "8px",
         }}
       >
-        {items.map((item: any) => (
+        {items.map((item) => (
           <div
             key={item.id}
             style={{ minWidth: "200px", maxWidth: "200px" }}

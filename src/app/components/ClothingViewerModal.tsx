@@ -1,21 +1,216 @@
 "use client";
 
+import Image from "next/image";
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export default function ClothingViewerModal({
-  open,
+type ClothingViewerModalProps = {
+  open: boolean;
+  clothing?: {
+    id?: string | number;
+    title?: string | null;
+    category?: string | null;
+    image?: string | null;
+    type?: string | null;
+    color?: string | null;
+    style?: string | null;
+    season?: string | null;
+    fabric?: string | null;
+    fit?: string | null;
+    occasion?: string | null;
+    formality?: string | null;
+    description?: string | null;
+    details?: string | null;
+    tags?: string[] | null;
+  } | null;
+  onClose: () => void;
+  onDelete: (item: {
+    id?: string | number;
+    title?: string | null;
+    image?: string | null;
+  }) => void;
+};
+
+export default function ClothingViewerModal(props: ClothingViewerModalProps) {
+  if (!props.open || !props.clothing) return null;
+
+  return (
+    <ClothingViewerModalContent
+      key={`${props.open ? "open" : "closed"}-${String(props.clothing.id ?? "unknown")}`}
+      {...props}
+    />
+  );
+}
+
+function ClothingViewerModalContent({
   clothing,
   onClose,
   onDelete,
-}: any) {
+}: ClothingViewerModalProps) {
+
   const [zoom, setZoom] = useState(1);
 
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const [dragging, setDragging] = useState(false);
+
+  const [startDrag, setStartDrag] = useState({ x: 0, y: 0 });
+
+  const [isMobile, setIsMobile] = useState(false);
+
+
   useEffect(() => {
-    setZoom(1);
-  }, [open, clothing?.id]);
+
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    handleResize();
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+
+  }, []);
+
+
+  useEffect(() => {
+
+    const stopDragging = () => {
+      setDragging(false);
+    };
+
+    window.addEventListener(
+      "mouseup",
+      stopDragging
+    );
+
+    // También detenemos el arrastre si levantan el dedo fuera de la pantalla
+    window.addEventListener(
+      "touchend",
+      stopDragging
+    );
+
+    return () => {
+
+      window.removeEventListener(
+        "mouseup",
+        stopDragging
+      );
+
+      window.removeEventListener(
+        "touchend",
+        stopDragging
+      );
+
+    };
+
+  }, []);
+
+
+  const handleWheel = (
+    e: React.WheelEvent
+  ) => {
+
+    e.preventDefault();
+
+    setZoom((current) => {
+
+      const next =
+        e.deltaY < 0
+          ? current + 0.15
+          : current - 0.15;
+
+      return Math.min(
+        3,
+        Math.max(1, next)
+      );
+    });
+  };
+
+
+  const handleMouseDown = (
+    e: React.MouseEvent
+  ) => {
+
+    if (zoom <= 1) return;
+
+    if (e.button !== 0) return;
+
+    setDragging(true);
+
+    setStartDrag({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+
+  };
+
+
+  const handleMouseMove = (
+    e: React.MouseEvent
+  ) => {
+
+    if (!dragging) return;
+
+    setPosition({
+      x: e.clientX - startDrag.x,
+      y: e.clientY - startDrag.y,
+    });
+  };
+
+
+  const handleMouseUp = () => {
+
+    setDragging(false);
+  };
+
+
+  // --- NUEVAS FUNCIONES PARA EL CELL ---
+
+  const handleTouchStart = (
+    e: React.TouchEvent
+  ) => {
+
+    if (zoom <= 1) return;
+
+    setDragging(true);
+
+    // En móviles se lee el primer punto de contacto táctil [0]
+    const touch = e.touches[0];
+
+    setStartDrag({
+      x: touch.clientX - position.x,
+      y: touch.clientY - position.y,
+    });
+  };
+
+
+  const handleTouchMove = (
+    e: React.TouchEvent
+  ) => {
+
+    if (!dragging) return;
+
+    const touch = e.touches[0];
+
+    setPosition({
+      x: touch.clientX - startDrag.x,
+      y: touch.clientY - startDrag.y,
+    });
+  };
+
+
+  const handleTouchEnd = () => {
+
+    setDragging(false);
+  };
+
 
   if (!open || !clothing) return null;
+
 
   return (
     <div
@@ -28,7 +223,7 @@ export default function ClothingViewerModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "24px",
+        padding: isMobile ? "0px" : "24px",
       }}
       onClick={onClose}
     >
@@ -37,47 +232,77 @@ export default function ClothingViewerModal({
         style={{
           width: "100%",
           maxWidth: "900px",
-          display: "grid",
-          gridTemplateColumns: "1fr 280px",
+          display: isMobile ? "flex" : "grid",
+          flexDirection: isMobile ? "column" : undefined,
+          gridTemplateColumns: isMobile ? undefined : "1fr 280px",
           background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          borderRadius: "16px",
+          border: isMobile ? "none" : "1px solid var(--border)",
+          borderRadius: isMobile ? "0px" : "16px",
           overflow: "hidden",
           boxShadow: "0 60px 160px rgba(0,0,0,0.9)",
-          maxHeight: "90vh",
+          height: isMobile ? "100vh" : "auto",
+          maxHeight: isMobile ? "100vh" : "90vh",
         }}
       >
-        {/* IMAGEN */}
+        {/* IMAGEN CON LOS EVENTOS DE CELULAR AÑADIDOS */}
         <div
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           style={{
             position: "relative",
             background: "var(--surface-4)",
-            minHeight: "500px",
+            height: isMobile ? "42vh" : "80vh",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            overflow: "auto",
+            overflow: "hidden",
+            flexShrink: 0,
+            cursor:
+              zoom > 1
+                ? dragging
+                  ? "grabbing"
+                  : "grab"
+                : "default",
+            touchAction: zoom > 1 ? "none" : "auto", // IMPORTANTE: Evita que el navegador del cel recargue o haga scroll nativo al arrastrar la prenda
           }}
         >
-          <img
-            src={clothing.image}
-            alt={clothing.title}
+          <Image
+            src={clothing.image || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='54' height='54'%3E%3Crect width='54' height='54' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='10' fill='%23666'%3Eimagen%3C/text%3E%3C/svg%3E"}
+            alt={clothing.title || "Prenda"}
+            fill
+            draggable={false}
+            sizes="(max-width: 768px) 100vw, 70vw"
             style={{
-              maxHeight: zoom === 1 ? "80vh" : "none",
-              maxWidth: zoom === 1 ? "100%" : "none",
-              width: zoom === 1 ? "auto" : `${Math.round(70 * zoom)}%`,
               objectFit: "contain",
-              padding: "24px",
+              padding: isMobile ? "16px" : "24px",
+              pointerEvents: "none",
+              userSelect: "none",
               transformOrigin: "center",
-              transition: "width 0.18s ease, max-width 0.18s ease, max-height 0.18s ease",
+              transform: `
+                translate(
+                  ${position.x}px,
+                  ${position.y}px
+                )
+                scale(${zoom})
+              `,
+              transition:
+                dragging
+                  ? "none"
+                  : "transform 0.18s ease",
             }}
           />
 
           <div
             style={{
               position: "absolute",
-              left: "24px",
-              bottom: "24px",
+              left: isMobile ? "16px" : "24px",
+              bottom: isMobile ? "16px" : "24px",
               display: "flex",
               alignItems: "center",
               gap: "10px",
@@ -86,6 +311,8 @@ export default function ClothingViewerModal({
               background: "rgba(14,14,15,0.78)",
               border: "1px solid var(--border-subtle)",
               backdropFilter: "blur(10px)",
+              transform: isMobile ? "scale(0.9)" : "scale(1)",
+              transformOrigin: "left bottom",
             }}
           >
             <button
@@ -103,7 +330,7 @@ export default function ClothingViewerModal({
               value={zoom}
               onChange={(event) => setZoom(Number(event.target.value))}
               aria-label="Zoom de imagen"
-              style={{ width: "120px", accentColor: "var(--gold)" }}
+              style={{ width: isMobile ? "90px" : "120px", accentColor: "var(--gold)" }}
             />
             <button
               onClick={() => setZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))}
@@ -113,7 +340,13 @@ export default function ClothingViewerModal({
               <ZoomIn size={16} />
             </button>
             <button
-              onClick={() => setZoom(1)}
+              onClick={() => {
+                setZoom(1);
+                setPosition({
+                  x: 0,
+                  y: 0,
+                });
+              }}
               aria-label="Restablecer zoom"
               style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid var(--border-subtle)", background: "var(--surface-3)", color: "var(--text-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
             >
@@ -125,12 +358,14 @@ export default function ClothingViewerModal({
         {/* INFO PANEL */}
         <div
           style={{
-            padding: "36px 28px",
-            borderLeft: "1px solid var(--border-subtle)",
+            padding: isMobile ? "24px 20px" : "36px 28px",
+            borderLeft: isMobile ? "none" : "1px solid var(--border-subtle)",
+            borderTop: isMobile ? "1px solid var(--border-subtle)" : "none",
             display: "flex",
             flexDirection: "column",
             gap: "0",
             minHeight: 0,
+            maxHeight: isMobile ? "58vh" : "80vh",
             overflowY: "auto",
             scrollbarWidth: "thin",
             scrollbarColor: "var(--gold-dim) transparent",
@@ -152,7 +387,7 @@ export default function ClothingViewerModal({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              marginBottom: "32px",
+              marginBottom: isMobile ? "16px" : "32px",
             }}
           >
             ×
@@ -176,7 +411,7 @@ export default function ClothingViewerModal({
           <h2
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: "32px",
+              fontSize: isMobile ? "26px" : "32px",
               fontWeight: 300,
               lineHeight: 1.15,
               color: "var(--text-primary)",
@@ -190,47 +425,96 @@ export default function ClothingViewerModal({
           <div style={{ width: "32px", height: "1px", background: "var(--gold)", marginBottom: "24px" }} />
 
           {/* META */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1 }}>
-            {[
-              { label: "Categoría",  value: clothing.category        },
-              { label: "Tipo",       value: clothing.type    || "—"  },
-              { label: "Color",      value: clothing.color   || "—"  },
-              { label: "Estilo",     value: clothing.style   || "—"  },
-              { label: "Temporada",  value: clothing.season  || "—"  },
-            ].map((item) => (
-              <div key={item.label}>
-                <div
-                  style={{
-                    fontSize: "10px",
-                    letterSpacing: "0.15em",
-                    textTransform: "uppercase",
-                    color: "var(--text-muted)",
-                    marginBottom: "3px",
-                  }}
-                >
-                  {item.label}
-                </div>
-                <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
-                  {item.value}
-                </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1, marginBottom: "30px" }}>
+            
+            <div>
+              <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                Categoría
               </div>
-            ))}
+              <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                {clothing.category}
+              </div>
+            </div>
 
-            {[
-              { label: "Tela", value: clothing.fabric },
-              { label: "Silueta", value: clothing.fit },
-              { label: "Ocasion", value: clothing.occasion },
-              { label: "Formalidad", value: clothing.formality },
-            ].filter((item) => item.value).map((item) => (
-              <div key={item.label}>
+            <div>
+              <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                Tipo
+              </div>
+              <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                {clothing.type || "—"}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                Color
+              </div>
+              <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                {clothing.color || "—"}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                Estilo
+              </div>
+              <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                {clothing.style || "—"}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                Temporada
+              </div>
+              <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                {clothing.season || "—"}
+              </div>
+            </div>
+
+            {clothing.fabric && (
+              <div>
                 <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
-                  {item.label}
+                  Tela
                 </div>
                 <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
-                  {item.value}
+                  {clothing.fabric}
                 </div>
               </div>
-            ))}
+            )}
+
+            {clothing.fit && (
+              <div>
+                <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                  Silueta
+                </div>
+                <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                  {clothing.fit}
+                </div>
+              </div>
+            )}
+
+            {clothing.occasion && (
+              <div>
+                <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                  Ocasion
+                </div>
+                <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                  {clothing.occasion}
+                </div>
+              </div>
+            )}
+
+            {clothing.formality && (
+              <div>
+                <div style={{ fontSize: "10px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "3px" }}>
+                  Formalidad
+                </div>
+                <div style={{ fontSize: "14px", color: "var(--text-primary)", fontWeight: 300 }}>
+                  {clothing.formality}
+                </div>
+              </div>
+            )}
 
             {(clothing.description || clothing.details) && (
               <div>
@@ -268,9 +552,8 @@ export default function ClothingViewerModal({
           </div>
 
           {/* BOTONES */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "auto", paddingBottom: isMobile ? "12px" : "0px" }}>
 
-            {/* CREAR OUTFIT */}
             <button
               style={{
                 width: "100%",
@@ -301,7 +584,6 @@ export default function ClothingViewerModal({
               Crear Outfit
             </button>
 
-            {/* ELIMINAR */}
             <button
               onClick={() => {
                 if (confirm(`¿Eliminar "${clothing.title}"?`)) {

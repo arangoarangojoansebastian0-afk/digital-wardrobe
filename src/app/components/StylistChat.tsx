@@ -1,14 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
+  detectedIds?: { upper?: string; lower?: string; outer?: string } | null; // NUEVO: Guarda los IDs filtrados por separado
 };
 
 type ClothingItem = {
-  id?: string | number;
+  id: string | number; // Forzado a requerido para mapear IDs visuales
   title?: string | null;
   category?: string | null;
   type?: string | null;
@@ -16,6 +18,8 @@ type ClothingItem = {
   style?: string | null;
   season?: string | null;
   tags?: string[] | null;
+  image?: string | null; // NUEVO: Añadido para poder renderizar las fotos en el chat
+  is_available?: boolean; // NUEVO: Control de ropa limpia/sucia
 };
 
 type StylistChatProps = {
@@ -37,9 +41,12 @@ const SUGGESTIONS = [
 ];
 
 function summarizeWardrobe(clothes: ClothingItem[]) {
-  if (clothes.length === 0) return "Sin prendas cargadas";
+  // NUEVO FILTRO: Solo resumir en la barra superior las prendas disponibles (limpias)
+  const availableClothes = clothes.filter(item => item.is_available !== false);
+  
+  if (availableClothes.length === 0) return "Sin prendas limpias disponibles";
 
-  const categories = clothes.reduce<Record<string, number>>((acc, item) => {
+  const categories = availableClothes.reduce<Record<string, number>>((acc, item) => {
     const category = item.category?.trim() || "Sin categoria";
     acc[category] = (acc[category] || 0) + 1;
     return acc;
@@ -55,13 +62,23 @@ export default function StylistChat({ clothes }: StylistChatProps) {
     {
       role: "assistant",
       content: WELCOME_MESSAGE,
+      detectedIds: null
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // NUEVOS ESTADOS: Controlan la metadata de la app (puedes cambiarlos con botones en tu UI)
+  const [city] = useState("Medellín");
+  const [temperature] = useState("24°C");
+  const [mood, setMood] = useState("Streetwear urbano"); // Selector de vibra/ánimo
+  const [dislikedColors] = useState(["amarillo"]); // Colores prohibidos integrados
+
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Memorizar el resumen usando el filtro de disponibilidad global
   const wardrobeSummary = useMemo(() => summarizeWardrobe(clothes), [clothes]);
+  const cleanClothesCount = useMemo(() => clothes.filter(i => i.is_available !== false).length, [clothes]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,8 +100,15 @@ export default function StylistChat({ clothes }: StylistChatProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: nextMessages,
-          clothes,
+          // Limpiamos los mensajes anteriores para no mandarle JSON_IDS viejos a la IA
+          messages: nextMessages.map(m => ({ role: m.role, content: m.content })), 
+          clothes, // Pasamos el array completo de ropa (el backend filtrará las is_available: false)
+          context: {
+            city,
+            temperature,
+            mood,
+            disliked_colors: dislikedColors
+          }
         }),
       });
 
@@ -94,11 +118,28 @@ export default function StylistChat({ clothes }: StylistChatProps) {
         throw new Error(data.error || "No pude responder, intenta de nuevo.");
       }
 
+      const rawMessage = data.message || "";
+      
+      // TRUCO MAESTRO: Separar el texto limpio del bloque JSON_IDS oculto
+      let cleanText = rawMessage;
+      let detectedIds = null;
+
+      if (rawMessage.includes("JSON_IDS:")) {
+        const parts = rawMessage.split("JSON_IDS:");
+        cleanText = parts[0].trim();
+        try {
+          detectedIds = JSON.parse(parts[1].trim());
+        } catch (e) {
+          console.warn("No se pudo parsear el JSON_IDS de la IA:", e);
+        }
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: data.message || "No pude generar una respuesta clara. Dame un poco mas de contexto.",
+          content: cleanText || "No pude generar una respuesta clara. Dame un poco mas de contexto.",
+          detectedIds: detectedIds
         },
       ]);
     } catch (error) {
@@ -112,11 +153,36 @@ export default function StylistChat({ clothes }: StylistChatProps) {
         {
           role: "assistant",
           content: message,
+          detectedIds: null
         },
       ]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Función interna para buscar una prenda por ID y pintar su miniatura
+  const renderItemThumbnail = (id: string | number | undefined) => {
+    if (!id) return null;
+    const item = clothes.find(c => String(c.id) === String(id));
+    if (!item || !item.image) return null;
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", background: "var(--surface-4)", padding: "8px", borderRadius: "8px", border: "1px solid var(--border-subtle)", width: "70px" }}>
+        <div style={{ position: "relative", width: "54px", height: "54px", borderRadius: "4px", overflow: "hidden" }}>
+          <Image
+            src={item.image || ""}
+            alt={item.title || "Ropa"}
+            fill
+            sizes="54px"
+            style={{ objectFit: "cover" }}
+          />
+        </div>
+        <span style={{ fontSize: "9px", color: "var(--text-muted)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", width: "100%", textAlign: "center" }}>
+          {item.title}
+        </span>
+      </div>
+    );
   };
 
   return (
@@ -126,12 +192,25 @@ export default function StylistChat({ clothes }: StylistChatProps) {
           <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "linear-gradient(135deg, var(--gold-dim), var(--gold))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "var(--surface)" }}>
             S
           </div>
-          <div>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: "28px", fontWeight: 300, fontStyle: "italic", color: "var(--gold)" }}>
-              IA Stylist
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: "28px", fontWeight: 300, fontStyle: "italic", color: "var(--gold)" }}>
+                IA Stylist
+              </div>
+              {/* Selector visual rápido del Mood / Enfoque de estilo */}
+              <select 
+                value={mood} 
+                onChange={(e) => setMood(e.target.value)}
+                style={{ background: "var(--surface-3)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)", borderRadius: "6px", fontSize: "11px", padding: "4px 8px", cursor: "pointer", outline: "none" }}
+              >
+                <option value="Streetwear urbano">Streetwear</option>
+                <option value="Elegante y formal">Formal</option>
+                <option value="Casual relajado">Casual</option>
+                <option value="Deportivo funcional">Deportivo</option>
+              </select>
             </div>
             <div style={{ fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: "2px" }}>
-              {clothes.length} prendas en tu armario
+              {cleanClothesCount} limpias | {city} ({temperature})
             </div>
           </div>
         </div>
@@ -145,7 +224,7 @@ export default function StylistChat({ clothes }: StylistChatProps) {
         className="scrollbar-hide"
       >
         {messages.map((msg, index) => (
-          <div key={`${msg.role}-${index}`} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+          <div key={`${msg.role}-${index}`} style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
             <div
               style={{
                 maxWidth: "80%",
@@ -162,6 +241,15 @@ export default function StylistChat({ clothes }: StylistChatProps) {
               }}
             >
               {msg.content}
+              
+              {/* NUEVO: Si la IA devolvió IDs válidos, pintamos las fotos de las prendas usadas justo debajo del texto */}
+              {msg.role === "assistant" && msg.detectedIds && (
+                <div style={{ display: "flex", gap: "8px", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border-subtle)", flexWrap: "wrap" }}>
+                  {renderItemThumbnail(msg.detectedIds.upper)}
+                  {renderItemThumbnail(msg.detectedIds.lower)}
+                  {renderItemThumbnail(msg.detectedIds.outer)}
+                </div>
+              )}
             </div>
           </div>
         ))}

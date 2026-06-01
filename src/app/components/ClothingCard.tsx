@@ -2,12 +2,19 @@
 
 import ProcessedClothingImage from "./ProcessedClothingImage";
 
+type ClothingCardProps = {
+  title?: string | null;
+  category?: string | null;
+  image?: string | null;
+  onClick: () => void;
+};
+
 export default function ClothingCard({
   title,
   category,
   image,
   onClick,
-}: any) {
+}: ClothingCardProps) {
   return (
     <div
       onClick={onClick}
@@ -43,7 +50,7 @@ export default function ClothingCard({
           overflow: "hidden",
         }}
       >
-        <ProcessedClothingImage src={image} alt={title} />
+        <ProcessedClothingImage src={image ?? ""} alt={title ?? ""} />
 
         {/* OVERLAY HOVER */}
         <div
