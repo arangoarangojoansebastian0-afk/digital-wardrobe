@@ -102,10 +102,9 @@ export default function Home() {
   }
 
   // ── CARGAR PRENDAS AL INICIAR ──
+  // eslint-disable-next-line
   useEffect(() => {
-    (async () => {
-      await loadClothes();
-    })();
+    loadClothes();
   }, []);
 
   // ── SUBIR IMAGEN A STORAGE ──
@@ -333,19 +332,22 @@ export default function Home() {
     }
   };
 
-  // ── ELIMINAR PRENDA ──
-  async function deleteClothing(item: ClothingItem) {
-    const { error } = await supabase
-      .from("clothes")
-      .delete()
-      .eq("id", item.id);
+ // ── ELIMINAR PRENDA ──
+// Cambiamos el tipo del parámetro 'item' para ser más flexible y compatible
+async function deleteClothing(item: { id: string | number; [key: string]: any }) {
+  if (!item.id) return; // Validación de seguridad
 
-    if (!error) {
-      setClothes((prev) => prev.filter((c) => c.id !== item.id));
-      setViewerOpen(false);
-      setSelectedClothing(null);
-    }
-  };
+  const { error } = await supabase
+    .from("clothes")
+    .delete()
+    .eq("id", item.id);
+
+  if (!error) {
+    setClothes((prev) => prev.filter((c) => c.id !== item.id));
+    setViewerOpen(false);
+    setSelectedClothing(null);
+  }
+}
 
   return (
     <main 
