@@ -101,17 +101,17 @@ Buenas prácticas y notas de diseño
 - Caching: cachear respuestas de análisis para evitar costos de llamadas a IA repetidas.
 
 Plan de trabajo y próximas tareas (visión)
-- Integrar un servicio de eliminación de fondo con mejor calidad (si procede).
-- Añadir tests unitarios e2e para endpoints críticos (`remove-background`, `analyze-clothing`).
 - Mejora de la experiencia de subida (progreso, cancelación, previews).
 - Persistencia avanzada: categorías, etiquetas manuales, búsqueda y filtros.
+- Integracion de visores 2D y 3D con ia de diseño 3D
 
 Cómo contribuir
 - Abre un issue describiendo la propuesta o bug.
 - Crea una rama con prefijo `feature/` o `fix/` y envía un PR.
 
 Contacto y mantenimiento
-- Autor: Equipo Digital Wardrobe.
+- Autor: Joan sebastian arango arango.
+- contacto:arangorangojoansebastian0@gmail.com
 - Para preguntas técnicas, abrir un issue o contactar al mantenedor del repo.
 
 ---
