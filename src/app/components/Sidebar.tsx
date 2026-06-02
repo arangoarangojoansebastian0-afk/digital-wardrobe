@@ -70,19 +70,19 @@ export default function Sidebar({
   return (
     <aside
       style={{
-        // En PC siempre mide 240px ignorando el colapso. En móvil varía dinámicamente.
         width: isMobile ? (isCollapsed ? "72px" : "240px") : "240px",
         minHeight: "100vh",
-        background: "var(--surface-2)",
-        borderRight: "1px solid var(--border-subtle)",
+        background: "linear-gradient(180deg, var(--surface-2) 0%, rgba(10, 10, 11, 0.95) 100%)",
+        borderRight: "1px solid var(--border-glass)",
         display: "flex",
         flexDirection: "column",
         padding: "0",
         position: "sticky",
         top: 0,
         flexShrink: 0,
-        transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)", // Animación suave
-        overflow: "hidden", // Evita que el texto se desborde al contraerse
+        transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        overflow: "hidden",
+        boxShadow: "10px 0 30px rgba(0, 0, 0, 0.2)",
       }}
     >
       {/* BOTÓN DISPARADOR (HAMBURGUESA) - SOLO VISIBLE EN CELULARES */}
@@ -110,7 +110,7 @@ export default function Sidebar({
 
       {/* LOGO */}
       <div style={{ 
-        padding: isCollapsed ? "16px 0 20px" : "36px 28px 32px", // Restaurado padding amplio original en PC
+        padding: isCollapsed ? "16px 0 20px" : "36px 28px 32px",
         borderBottom: "1px solid var(--border-subtle)",
         textAlign: isCollapsed ? "center" : "left",
         transition: "padding 0.3s"
@@ -139,26 +139,38 @@ export default function Sidebar({
               gap: isCollapsed ? "0px" : "14px",
               padding: isCollapsed ? "14px 0" : "13px 28px",
               background: active === item.id
-                ? "linear-gradient(90deg, rgba(201,168,76,0.1) 0%, transparent 100%)"
+                ? "linear-gradient(90deg, rgba(201,168,76,0.12) 0%, rgba(201,168,76,0.02) 80%, transparent 100%)"
                 : "transparent",
               border: "none",
-              borderLeft: active === item.id ? "2px solid var(--gold)" : "2px solid transparent",
+              borderLeft: active === item.id ? "3px solid var(--gold)" : "3px solid transparent",
               cursor: "pointer",
               color: active === item.id ? "var(--gold-light)" : "var(--text-secondary)",
               fontFamily: "var(--font-body)",
               fontSize: "13px",
               fontWeight: active === item.id ? 400 : 300,
-              letterSpacing: "0.05em",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
               textAlign: "left",
-              transition: "all 0.2s ease",
+              textShadow: active === item.id ? "0 0 10px rgba(201,168,76,0.25)" : "none",
+              transition: "var(--transition-smooth)",
             }}
             onMouseEnter={(e) => {
-              if (active !== item.id)
-                (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+              const el = e.currentTarget as HTMLButtonElement;
+              if (active !== item.id) {
+                el.style.color = "var(--text-primary)";
+                el.style.background = "rgba(255, 255, 255, 0.02)";
+              } else {
+                el.style.textShadow = "0 0 15px rgba(201,168,76,0.4)";
+              }
             }}
             onMouseLeave={(e) => {
-              if (active !== item.id)
-                (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+              const el = e.currentTarget as HTMLButtonElement;
+              if (active !== item.id) {
+                el.style.color = "var(--text-secondary)";
+                el.style.background = "transparent";
+              } else {
+                el.style.textShadow = "0 0 10px rgba(201,168,76,0.25)";
+              }
             }}
           >
             {/* El Signo/Icono siempre se ve */}
@@ -180,9 +192,9 @@ export default function Sidebar({
       </nav>
 
       {/* FOOTER */}
-      <div style={{ padding: isCollapsed ? "20px 0" : "20px 28px", borderTop: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", width: "100%", justifyContent: isCollapsed ? "center" : "flex-start" }}>
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "linear-gradient(135deg, var(--gold-dim), var(--gold))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 500, color: "var(--surface)", flexShrink: 0 }}>
+      <div style={{ padding: isCollapsed ? "20px 0" : "24px 28px", borderTop: "1px solid var(--border-glass)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", width: "100%", justifyContent: isCollapsed ? "center" : "flex-start" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "var(--gold-gradient)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 500, color: "var(--surface)", flexShrink: 0, boxShadow: "var(--shadow-glow)" }}>
             {initial}
           </div>
           {!isCollapsed && (
