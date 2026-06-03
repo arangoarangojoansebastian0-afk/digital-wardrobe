@@ -5,13 +5,13 @@ import { supabase } from "@/lib/supabase";
 import type { BodyProfile, BodyShape } from "@/types/mannequin";
 import type { ClothingItem, Outfit, ClothingSlot } from "@/types/clothing";
 
-const SLOT_DEFAULT_POSITIONS: Record<ClothingSlot, { x: number; y: number; width: number }> = {
-  upper: { x: 50, y: 28, width: 38 },
-  lower: { x: 50, y: 56, width: 46 },
-  outer: { x: 50, y: 24, width: 45 },
-  dress: { x: 50, y: 45, width: 48 },
-  shoes: { x: 50, y: 88, width: 34 },
-  accessory: { x: 65, y: 20, width: 18 },
+const SLOT_DEFAULT_POSITIONS: Record<ClothingSlot, { x: number; y: number; width: number; height: number; rotate: number; clipPath: string; borderRadius: string }> = {
+  upper: { x: 50, y: 24, width: 42, height: 42, rotate: -2, clipPath: "ellipse(52% 58% at 50% 42%)", borderRadius: "32px" },
+  lower: { x: 50, y: 56, width: 46, height: 48, rotate: 0, clipPath: "ellipse(48% 68% at 50% 24%)", borderRadius: "38px" },
+  outer: { x: 50, y: 22, width: 46, height: 46, rotate: -1, clipPath: "ellipse(54% 62% at 50% 40%)", borderRadius: "34px" },
+  dress: { x: 50, y: 44, width: 48, height: 80, rotate: 0, clipPath: "ellipse(48% 80% at 50% 28%)", borderRadius: "42px" },
+  shoes: { x: 50, y: 90, width: 34, height: 22, rotate: 0, clipPath: "ellipse(52% 32% at 50% 48%)", borderRadius: "28px" },
+  accessory: { x: 65, y: 18, width: 18, height: 20, rotate: 10, clipPath: "ellipse(50% 50% at 50% 50%)", borderRadius: "999px" },
 };
 
 function normalizeSlot(value: unknown): ClothingSlot {
@@ -45,61 +45,47 @@ const shapeLabelMap: Record<BodyShape, string> = {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function getScaled(value: number, base: number) {
-  return clamp((value / base) * 100, 35, 70);
+  return clamp((value / base) * 100, 30, 65);
 }
 
 function buildSilhouettePath(profile: BodyProfile, width: number, height: number) {
-  const shoulder = getScaled(profile.shoulder_width_cm, 38); // ancho de hombros
-  const chest = getScaled(profile.chest_circumference_cm, 90);
-  const waist = getScaled(profile.waist_circumference_cm, 70);
-  const hip = getScaled(profile.hip_circumference_cm, 95);
-  const upperLeg = clamp(profile.leg_length_cm / 1.8, 30, 42);
-  const waistY = height * 0.38;
-  const hipY = height * 0.55;
+  const headHeight = height * 0.12;
+  const shoulder = clamp(getScaled(profile.shoulder_width_cm, 38), 34, 58);
+  const chest = clamp(getScaled(profile.chest_circumference_cm, 90), 40, 60);
+  const waist = clamp(getScaled(profile.waist_circumference_cm, 70), 32, 48);
+  const hip = clamp(getScaled(profile.hip_circumference_cm, 95), 44, 64);
+  const waistY = height * 0.32;
+  const hipY = height * 0.52;
   const kneeY = height * 0.75;
-  const footY = height * 0.97;
+  const footY = height * 0.98;
 
   const centerX = width / 2;
-  const shoulderX = centerX - shoulder * 0.8;
-  const chestX = centerX - chest * 0.5;
-  const waistX = centerX - waist * 0.4;
-  const hipX = centerX - hip * 0.45;
-
-  const left = (x: number) => x;
-  const right = (x: number) => width - x;
-
-  const curve = (startX: number, endX: number, y: number) => `${startX},${y} C ${startX + 8},${y + 10} ${endX - 8},${y + 10} ${endX},${y}`;
-
-  const shape = profile.body_shape;
-  const waistOffset = shape === "hourglass" ? 10 : shape === "pear" ? -4 : shape === "inverted_triangle" ? 6 : shape === "triangle" ? 0 : 2;
-  const hipOffset = shape === "pear" ? 12 : shape === "triangle" ? -8 : 0;
-  const shoulderOffset = shape === "inverted_triangle" ? 12 : shape === "triangle" ? -6 : 0;
-
-  const leftShoulder = shoulderX - shoulderOffset;
-  const rightShoulder = width - leftShoulder;
-  const leftChest = chestX - shoulderOffset * 0.4;
-  const rightChest = width - leftChest;
-  const leftWaist = waistX + waistOffset;
-  const rightWaist = width - leftWaist;
-  const leftHip = hipX - hipOffset;
-  const rightHip = width - leftHip;
+  const leftShoulder = centerX - shoulder * 0.6;
+  const rightShoulder = centerX + shoulder * 0.6;
+  const leftChest = centerX - chest * 0.45;
+  const rightChest = centerX + chest * 0.45;
+  const leftWaist = centerX - waist * 0.35;
+  const rightWaist = centerX + waist * 0.35;
+  const leftHip = centerX - hip * 0.45;
+  const rightHip = centerX + hip * 0.45;
 
   return [`
     M ${centerX},0
-    C ${centerX - 10},${height * 0.08} ${leftShoulder},${height * 0.13} ${leftShoulder},${height * 0.18}
-    L ${leftChest},${waistY * 0.75}
-    C ${leftChest - 10},${waistY * 0.95} ${leftWaist + 8},${waistY + 8} ${leftWaist},${waistY}
-    L ${leftHip},${hipY}
-    C ${leftHip - 8},${hipY + 10} ${leftHip + 10},${kneeY - 6} ${leftHip + 8},${kneeY}
-    L ${leftHip + 8},${footY}
-    L ${rightHip - 8},${footY}
-    C ${rightHip - 8},${kneeY + 6} ${rightHip + 8},${kneeY + 6} ${rightHip},${kneeY}
+    C ${centerX - 16},${headHeight * 0.6} ${leftShoulder - 10},${headHeight * 0.9} ${leftShoulder},${headHeight}
+    L ${leftShoulder},${headHeight + 18}
+    C ${leftShoulder},${headHeight + 26} ${leftChest - 8},${headHeight + 42} ${leftChest},${headHeight + 50}
+    C ${leftChest - 10},${waistY - 10} ${leftWaist + 8},${waistY + 12} ${leftWaist},${waistY}
+    C ${leftWaist - 6},${hipY - 6} ${leftHip + 6},${hipY + 14} ${leftHip},${hipY}
+    L ${leftHip + 8},${kneeY}
+    C ${leftHip + 10},${kneeY + 18} ${leftHip + 18},${footY - 6} ${leftHip + 18},${footY}
+    L ${rightHip - 18},${footY}
+    C ${rightHip - 18},${footY - 6} ${rightHip - 10},${kneeY + 18} ${rightHip - 8},${kneeY}
     L ${rightHip},${hipY}
-    C ${rightHip - 8},${hipY + 10} ${rightWaist - 8},${waistY + 8} ${rightWaist},${waistY}
-    L ${rightChest},${waistY * 0.75}
-    C ${rightChest + 10},${waistY * 0.95} ${rightShoulder - 8},${height * 0.13} ${rightShoulder},${height * 0.18}
-    L ${rightShoulder},${height * 0.18}
-    C ${rightShoulder},${height * 0.13} ${centerX + 10},${height * 0.08} ${centerX},0
+    C ${rightHip - 6},${hipY + 14} ${rightWaist + 6},${waistY - 6} ${rightWaist},${waistY}
+    C ${rightWaist + 8},${waistY + 12} ${rightChest + 10},${headHeight + 48} ${rightChest},${headHeight + 50}
+    C ${rightShoulder},${headHeight + 44} ${rightShoulder},${headHeight + 28} ${rightShoulder},${headHeight + 18}
+    C ${rightShoulder + 10},${headHeight * 0.9} ${centerX + 16},${headHeight * 0.6} ${centerX},0
+    Z
   `].join(" ");
 }
 
@@ -215,24 +201,41 @@ export default function MannequinViewer({
               const x = clamp(item.outfit_anchor_x ?? placement.x, 0, 100);
               const y = clamp(item.outfit_anchor_y ?? placement.y, 0, 100);
               const width = clamp(item.outfit_width ?? placement.width, 16, 70);
+              const height = placement.height;
               const zIndex = item.outfit_layer ?? 5;
 
               return (
-                <img
+                <div
                   key={String(item.id)}
-                  src={item.image}
-                  alt={item.title ?? "Prenda seleccionada"}
                   style={{
                     position: "absolute",
                     left: `${x}%`,
                     top: `${y}%`,
                     width: `${width}%`,
-                    transform: "translate(-50%, -50%)",
+                    height: `${height}%`,
+                    transform: `translate(-50%, -50%) rotate(${placement.rotate}deg)`,
                     zIndex,
-                    borderRadius: "18px",
-                    boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
+                    overflow: "hidden",
+                    borderRadius: placement.borderRadius,
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.24)",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    clipPath: placement.clipPath,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
-                />
+                >
+                  <img
+                    src={item.image}
+                    alt={item.title ?? "Prenda seleccionada"}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                </div>
               );
             })}
 
