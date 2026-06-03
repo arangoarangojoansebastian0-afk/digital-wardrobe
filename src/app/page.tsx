@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ChangeEvent } from "react";
+import { useState, useEffect, useMemo, type ChangeEvent } from "react";
 
 import Sidebar from "./components/Sidebar";
 import UploadMenu from "./components/UploadMenu";
@@ -8,46 +8,15 @@ import AddClothingButton from "./components/AddClothingButton";
 import ClothingSlider from "./components/ClothingSlider";
 import ClothingEditorModal from "./components/ClothingEditorModal";
 import ClothingViewerModal from "./components/ClothingViewerModal";
+import MannequinViewer from "./components/MannequinViewer";
+import OutfitsPanel from "./components/OutfitsPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import StylistChat from "./components/StylistChat";
 
 import { supabase } from "@/lib/supabase";
+import type { ClothingAnalysis, ClothingItem, Outfit, OutfitItemIds } from "@/types/clothing";
 
 type Tab = "armario" | "outfits" | "stylist" | "favoritos" | "ajustes";
-
-type ClothingAnalysis = {
-  title: string;
-  category: string;
-  type: string;
-  color: string;
-  style: string;
-  season: string;
-  tags: string[];
-  description: string;
-  details: string;
-  fabric: string;
-  fit: string;
-  occasion: string;
-  formality: string;
-};
-
-type ClothingItem = {
-  id: string | number;
-  title?: string | null;
-  category?: string | null;
-  image?: string | null;
-  type?: string | null;
-  color?: string | null;
-  style?: string | null;
-  season?: string | null;
-  tags?: string[] | null;
-  description?: string | null;
-  details?: string | null;
-  fabric?: string | null;
-  fit?: string | null;
-  occasion?: string | null;
-  formality?: string | null;
-};
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("armario");
@@ -71,10 +40,35 @@ export default function Home() {
   const [fit, setFit] = useState("");
   const [occasion, setOccasion] = useState("");
   const [formality, setFormality] = useState("");
+  const [outfitMeta, setOutfitMeta] = useState({
+    outfit_slot: "accessory",
+    outfit_anchor_x: 50,
+    outfit_anchor_y: 50,
+    outfit_width: 30,
+    outfit_layer: 5,
+  });
   const [analyzingClothing, setAnalyzingClothing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedClothing, setSelectedClothing] = useState<ClothingItem | null>(null);
+  const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
+  const [outfits, setOutfits] = useState<Outfit[]>([]);
+
+  const highlightedItemIds = useMemo(() => {
+    const ids = new Set<string | number>();
+
+    if (selectedClothing?.id) {
+      ids.add(selectedClothing.id);
+    }
+
+    if (selectedOutfit) {
+      Object.values(selectedOutfit.item_ids).forEach((id) => {
+        if (id) ids.add(id);
+      });
+    }
+
+    return ids;
+  }, [selectedClothing, selectedOutfit]);
 
   // Estado auxiliar para detectar si es pantalla móvil en el frontend
   const [isMobile, setIsMobile] = useState(false);
@@ -90,21 +84,72 @@ export default function Home() {
 
   const categories = [...new Set(clothes.map((item) => item.category || "Sin categoría"))];
 
+  const outfitsByItemId = useMemo(() => {
+    const map = new Map<string, string[]>();
+
+    outfits.forEach((outfit) => {
+      const title = outfit.title?.trim() || "Outfit guardado";
+      Object.values(outfit.item_ids).forEach((id) => {
+        if (!id) return;
+        const key = String(id);
+        const existing = map.get(key) || [];
+        if (!existing.includes(title)) {
+          map.set(key, [...existing, title]);
+        }
+      });
+    });
+
+    return map;
+  }, [outfits]);
+
   async function loadClothes() {
     setLoading(true);
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+
+    if (!userId) {
+      setClothes([]);
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("clothes")
       .select("*")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (!error && data) setClothes(data as ClothingItem[]);
     setLoading(false);
   }
 
-  // ── CARGAR PRENDAS AL INICIAR ──
-  // eslint-disable-next-line
+  async function loadOutfits() {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+
+    if (!userId) {
+      setOutfits([]);
+      return;
+    }
+
+    const response = await fetch(`/api/outfits?user_id=${encodeURIComponent(userId)}`);
+    if (!response.ok) {
+      setOutfits([]);
+      return;
+    }
+
+    const data = await response.json();
+    setOutfits(Array.isArray(data) ? data : []);
+  }
+
+  // ── CARGAR PRENDAS Y OUTFITS AL INICIAR ──
   useEffect(() => {
-    loadClothes();
+    const bootstrap = async () => {
+      await loadClothes();
+      await loadOutfits();
+    };
+
+    void bootstrap();
   }, []);
 
   // ── SUBIR IMAGEN A STORAGE ──
@@ -157,6 +202,13 @@ export default function Home() {
     setFit(analysis.fit || "");
     setOccasion(analysis.occasion || "");
     setFormality(analysis.formality || "");
+    setOutfitMeta({
+      outfit_slot: analysis.outfit_slot || "accessory",
+      outfit_anchor_x: analysis.outfit_anchor_x ?? 50,
+      outfit_anchor_y: analysis.outfit_anchor_y ?? 50,
+      outfit_width: analysis.outfit_width ?? 30,
+      outfit_layer: analysis.outfit_layer ?? 5,
+    });
   };
 
   const resetClothingForm = () => {
@@ -176,6 +228,13 @@ export default function Home() {
     setFit("");
     setOccasion("");
     setFormality("");
+    setOutfitMeta({
+      outfit_slot: "accessory",
+      outfit_anchor_x: 50,
+      outfit_anchor_y: 50,
+      outfit_width: 30,
+      outfit_layer: 5,
+    });
     setAnalyzingClothing(false);
     setAnalysisError("");
   };
@@ -295,6 +354,11 @@ export default function Home() {
         fit: fit || null,
         occasion: occasion || null,
         formality: formality || null,
+        outfit_slot: outfitMeta.outfit_slot,
+        outfit_anchor_x: outfitMeta.outfit_anchor_x,
+        outfit_anchor_y: outfitMeta.outfit_anchor_y,
+        outfit_width: outfitMeta.outfit_width,
+        outfit_layer: outfitMeta.outfit_layer,
       }).select().single();
 
       let savedData = data;
@@ -334,13 +398,17 @@ export default function Home() {
 
 // ── ELIMINAR PRENDA ──
   // Usamos 'any' en el parámetro para evitar conflictos con el tipo ClothingItem estricto
-  async function deleteClothing(item: any) {
-    if (!item?.id) return; 
+  async function deleteClothing(item: ClothingItem) {
+    if (!item?.id) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
     const { error } = await supabase
       .from("clothes")
       .delete()
-      .eq("id", item.id);
+      .eq("id", item.id)
+      .eq("user_id", user.id);
 
     if (!error) {
       setClothes((prev) => prev.filter((c) => c.id !== item.id));
@@ -349,6 +417,89 @@ export default function Home() {
     } else {
       console.error("Error al eliminar:", error);
     }
+  }
+
+  async function saveOutfit(payload: { title: string; description?: string; item_ids: Outfit["item_ids"] }) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) throw new Error("No user");
+
+    const response = await fetch("/api/outfits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id, ...payload }),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || "No se pudo guardar el outfit.");
+    }
+
+    await loadOutfits();
+  }
+
+  async function saveSuggestedOutfit(payload: { title: string; description?: string; item_ids: Outfit["item_ids"] }): Promise<Outfit | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) throw new Error("No user");
+
+    const response = await fetch("/api/outfits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id, ...payload }),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || "No se pudo guardar el outfit.");
+    }
+
+    const data = await response.json().catch(() => null);
+    await loadOutfits();
+    return data as Outfit | null;
+  }
+
+  async function deleteOutfit(outfitId: string | number) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) return;
+
+    const response = await fetch("/api/outfits", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id, id: outfitId }),
+    });
+
+    if (!response.ok) {
+      console.error("No se pudo eliminar el outfit");
+      return;
+    }
+
+    if (selectedOutfit?.id === outfitId) {
+      setSelectedOutfit(null);
+    }
+
+    await loadOutfits();
+  }
+
+  function previewOutfit(outfit: Outfit) {
+    setSelectedOutfit(outfit);
+    setSelectedClothing(null);
+  }
+
+  function clearOutfitPreview() {
+    setSelectedOutfit(null);
+  }
+
+  function applySuggestedOutfit(item_ids: OutfitItemIds) {
+    const validIds = Object.values(item_ids).filter(Boolean);
+    if (validIds.length === 0) return;
+
+    setSelectedOutfit({
+      id: `suggested-${Date.now()}`,
+      user_id: null,
+      title: "Outfit sugerido",
+      description: "Montaje sugerido por IA",
+      item_ids,
+    });
+    setSelectedClothing(null);
   }
 
   return (
@@ -418,7 +569,7 @@ export default function Home() {
                   {[
                     { num: clothes.length, label: "Prendas" },
                     { num: categories.length, label: "Categorías" },
-                    { num: 0, label: "Outfits" },
+                    { num: outfits.length, label: "Outfits" },
                   ].map((stat) => (
                     <div key={stat.label} style={{ textAlign: isMobile ? "left" : "right", minWidth: isMobile ? "0" : "92px", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--border-subtle)", background: "rgba(255,255,255,0.025)" }}>
                       <div style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "24px" : "32px", fontWeight: 300, color: "var(--gold)", lineHeight: 1 }}>{stat.num}</div>
@@ -429,6 +580,8 @@ export default function Home() {
               </div>
               <div className="soft-divider" style={{ marginTop: "24px", height: "1px" }} />
             </div>
+
+            <MannequinViewer clothes={clothes} selectedClothing={selectedClothing} selectedOutfit={selectedOutfit} />
 
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
@@ -452,8 +605,15 @@ export default function Home() {
                   <ClothingSlider
                     key={cat}
                     title={cat}
-                    items={clothes.filter((item) => item.category === cat)}
+                    items={clothes
+                      .filter((item) => item.category === cat)
+                      .map((item) => ({
+                        ...item,
+                        outfitLabels: outfitsByItemId.get(String(item.id)) || [],
+                      }))}
+                    selectedIds={highlightedItemIds}
                     onItemClick={(item) => {
+                      setSelectedOutfit(null);
                       setSelectedClothing(item);
                       setViewerOpen(true);
                     }}
@@ -466,15 +626,49 @@ export default function Home() {
 
         {/* ===== OUTFITS ===== */}
         {activeTab === "outfits" && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", textAlign: "center", padding: "0 20px" }}>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "32px" : "48px", fontWeight: 300, fontStyle: "italic", color: "var(--text-primary)", marginBottom: "12px" }}>Outfits</div>
-            <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>Próximamente — Crea combinaciones con tu ropa</div>
-          </div>
+          <>
+            <OutfitsPanel
+              clothes={clothes}
+              outfits={outfits}
+              selectedOutfit={selectedOutfit}
+              onSaveOutfit={saveOutfit}
+              onDeleteOutfit={deleteOutfit}
+              onPreviewOutfit={previewOutfit}
+              onClearPreview={clearOutfitPreview}
+            />
+            {selectedOutfit && (
+              <div style={{ marginTop: "28px", display: "grid", gap: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+                  <div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 300, color: "var(--text-primary)" }}>Vista previa del outfit</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>Selecciona otro outfit o cierra la vista previa para ver más combinaciones.</div>
+                  </div>
+                  <button
+                    onClick={clearOutfitPreview}
+                    style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "14px", color: "var(--text-muted)", padding: "12px 16px", cursor: "pointer", fontSize: "12px" }}
+                  >
+                    Cerrar vista
+                  </button>
+                </div>
+
+                <MannequinViewer clothes={clothes} selectedOutfit={selectedOutfit} selectedClothing={null} />
+              </div>
+            )}
+          </>
         )}
 
         {/* ===== IA STYLIST ===== */}
         {activeTab === "stylist" && (
-          <StylistChat clothes={clothes} />
+          <StylistChat
+            clothes={clothes}
+            onApplySuggestedOutfit={applySuggestedOutfit}
+            onSaveSuggestedOutfit={async (payload) => {
+              const saved = await saveSuggestedOutfit(payload);
+              if (saved) {
+                previewOutfit(saved);
+              }
+            }}
+          />
         )}
 
         {/* ===== FAVORITOS ===== */}

@@ -9,17 +9,20 @@ type ClothingItemSummary = {
   image?: string | null;
   color?: string | null;
   style?: string | null;
+  outfitLabels?: string[];
 };
 
 type ClothingSliderProps = {
   title: string;
   items: ClothingItemSummary[];
+  selectedIds?: Set<string | number>;
   onItemClick: (item: ClothingItemSummary) => void;
 };
 
 export default function ClothingSlider({
   title,
   items,
+  selectedIds,
   onItemClick,
 }: ClothingSliderProps) {
   return (
@@ -108,6 +111,8 @@ export default function ClothingSlider({
               image={item.image}
               color={item.color}
               style={item.style}
+              selected={selectedIds?.has(item.id)}
+              outfitLabels={item.outfitLabels}
               onClick={() => onItemClick(item)}
             />
           </div>

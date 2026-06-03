@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import BodyProfileEditor from "./BodyProfileEditor";
 
 const ACCENT_COLORS = [
   { name: "Dorado",  color: "#C9A84C", dim: "#8A6F32" },
@@ -76,6 +77,7 @@ export default function SettingsPanel() {
 
   const sections = [
     { id: "perfil",     label: "Perfil",     icon: "◎" },
+    { id: "cuerpo",     label: "Cuerpo",     icon: "👤" },
     { id: "apariencia", label: "Apariencia",  icon: "◈" },
     { id: "cuenta",     label: "Cuenta",      icon: "✦" },
   ];
@@ -296,6 +298,17 @@ export default function SettingsPanel() {
                 </button>
               ))}
             </div>
+          </>
+        )}
+
+        {/* ===== CUERPO ===== */}
+        {section === "cuerpo" && (
+          <>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 300, fontStyle: "italic", marginBottom: "24px", color: "var(--text-primary)" }}>Cuerpo</div>
+            <div style={{ marginBottom: "24px", color: "var(--text-secondary)", lineHeight: 1.7 }}>
+              Ajusta tu perfil corporal para personalizar la experiencia del mannequin y mejorar futuras recomendaciones de prendas.
+            </div>
+            <BodyProfileEditor />
           </>
         )}
 

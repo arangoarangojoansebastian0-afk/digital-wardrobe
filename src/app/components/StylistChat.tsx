@@ -3,10 +3,19 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+type OutfitItemIds = {
+  upper?: string;
+  lower?: string;
+  outer?: string;
+  dress?: string;
+  shoes?: string;
+  accessory?: string;
+};
+
 type Message = {
   role: "user" | "assistant";
   content: string;
-  detectedIds?: { upper?: string; lower?: string; outer?: string } | null; // NUEVO: Guarda los IDs filtrados por separado
+  detectedIds?: OutfitItemIds | null;
 };
 
 type ClothingItem = {
@@ -24,6 +33,8 @@ type ClothingItem = {
 
 type StylistChatProps = {
   clothes: ClothingItem[];
+  onApplySuggestedOutfit?: (itemIds: OutfitItemIds) => void;
+  onSaveSuggestedOutfit?: (payload: { title: string; description?: string; item_ids: OutfitItemIds }) => Promise<unknown>;
 };
 
 const WELCOME_MESSAGE =
@@ -57,7 +68,7 @@ function summarizeWardrobe(clothes: ClothingItem[]) {
     .join(" | ");
 }
 
-export default function StylistChat({ clothes }: StylistChatProps) {
+export default function StylistChat({ clothes, onApplySuggestedOutfit, onSaveSuggestedOutfit }: StylistChatProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -67,6 +78,13 @@ export default function StylistChat({ clothes }: StylistChatProps) {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saveDraft, setSaveDraft] = useState<{
+    item_ids: OutfitItemIds;
+    title: string;
+    description: string;
+  } | null>(null);
+  const [savingSuggested, setSavingSuggested] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
 
   // NUEVOS ESTADOS: Controlan la metadata de la app (puedes cambiarlos con botones en tu UI)
   const [city] = useState("Medellín");
@@ -244,11 +262,98 @@ export default function StylistChat({ clothes }: StylistChatProps) {
               
               {/* NUEVO: Si la IA devolvió IDs válidos, pintamos las fotos de las prendas usadas justo debajo del texto */}
               {msg.role === "assistant" && msg.detectedIds && (
-                <div style={{ display: "flex", gap: "8px", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border-subtle)", flexWrap: "wrap" }}>
-                  {renderItemThumbnail(msg.detectedIds.upper)}
-                  {renderItemThumbnail(msg.detectedIds.lower)}
-                  {renderItemThumbnail(msg.detectedIds.outer)}
-                </div>
+                <>
+                  <div style={{ display: "flex", gap: "8px", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border-subtle)", flexWrap: "wrap" }}>
+                    {renderItemThumbnail(msg.detectedIds.upper)}
+                    {renderItemThumbnail(msg.detectedIds.lower)}
+                    {renderItemThumbnail(msg.detectedIds.outer)}
+                    {renderItemThumbnail(msg.detectedIds.dress)}
+                    {renderItemThumbnail(msg.detectedIds.shoes)}
+                    {renderItemThumbnail(msg.detectedIds.accessory)}
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
+                    {onApplySuggestedOutfit && (
+                      <button
+                        onClick={() => onApplySuggestedOutfit(msg.detectedIds as OutfitItemIds)}
+                        style={{ background: "var(--gold)", border: "none", borderRadius: "14px", padding: "10px 14px", color: "var(--surface)", cursor: "pointer", fontSize: "12px", textTransform: "uppercase" }}
+                      >
+                        Aplicar outfit sugerido
+                      </button>
+                    )}
+                    {onSaveSuggestedOutfit && (
+                      <button
+                        onClick={() => {
+                          setSaveStatus("");
+                          setSaveDraft({
+                            item_ids: msg.detectedIds as OutfitItemIds,
+                            title: "Outfit sugerido",
+                            description: "",
+                          });
+                        }}
+                        style={{ background: "transparent", border: "1px solid var(--border-subtle)", borderRadius: "14px", padding: "10px 14px", color: "var(--text-primary)", cursor: "pointer", fontSize: "12px", textTransform: "uppercase" }}
+                      >
+                        Guardar outfit sugerido
+                      </button>
+                    )}
+                  </div>
+
+                  {saveDraft && JSON.stringify(saveDraft.item_ids) === JSON.stringify(msg.detectedIds) && (
+                    <div style={{ marginTop: "14px", padding: "14px", borderRadius: "18px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <div style={{ display: "grid", gap: "10px" }}>
+                        <input
+                          value={saveDraft.title}
+                          onChange={(e) => setSaveDraft((prev) => prev ? { ...prev, title: e.target.value } : prev)}
+                          placeholder="Nombre del outfit"
+                          style={{ width: "100%", border: "1px solid var(--border-subtle)", borderRadius: "12px", padding: "12px", background: "var(--surface-3)", color: "var(--text-primary)", fontSize: "14px" }}
+                        />
+                        <textarea
+                          value={saveDraft.description}
+                          onChange={(e) => setSaveDraft((prev) => prev ? { ...prev, description: e.target.value } : prev)}
+                          rows={3}
+                          placeholder="Descripción opcional"
+                          style={{ width: "100%", border: "1px solid var(--border-subtle)", borderRadius: "12px", padding: "12px", background: "var(--surface-3)", color: "var(--text-primary)", fontSize: "14px", resize: "vertical" }}
+                        />
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                          <button
+                            onClick={async () => {
+                              if (!saveDraft) return;
+                              setSavingSuggested(true);
+                              try {
+                                await onSaveSuggestedOutfit?.({
+                                  title: saveDraft.title.trim() || "Outfit sugerido",
+                                  description: saveDraft.description.trim() || undefined,
+                                  item_ids: saveDraft.item_ids,
+                                });
+                                setSaveStatus("Outfit guardado correctamente.");
+                                if (onApplySuggestedOutfit) {
+                                  onApplySuggestedOutfit(saveDraft.item_ids);
+                                }
+                                setSaveDraft(null);
+                              } catch (err) {
+                                console.error(err);
+                                setSaveStatus("No se pudo guardar el outfit. Intenta otra vez.");
+                              } finally {
+                                setSavingSuggested(false);
+                              }
+                            }}
+                            disabled={savingSuggested}
+                            style={{ background: "var(--gold)", border: "none", borderRadius: "14px", padding: "10px 14px", color: "var(--surface)", cursor: savingSuggested ? "not-allowed" : "pointer", fontSize: "12px", textTransform: "uppercase" }}
+                          >
+                            {savingSuggested ? "Guardando..." : "Guardar outfit"}
+                          </button>
+                          <button
+                            onClick={() => setSaveDraft(null)}
+                            disabled={savingSuggested}
+                            style={{ background: "transparent", border: "1px solid var(--border-subtle)", borderRadius: "14px", padding: "10px 14px", color: "var(--text-primary)", cursor: savingSuggested ? "not-allowed" : "pointer", fontSize: "12px", textTransform: "uppercase" }}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                        {saveStatus && <div style={{ color: "var(--text-secondary)", fontSize: "12px" }}>{saveStatus}</div>}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

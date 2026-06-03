@@ -8,6 +8,8 @@ type ClothingCardProps = {
   image?: string | null;
   color?: string | null;
   style?: string | null;
+  selected?: boolean;
+  outfitLabels?: string[];
   onClick: () => void;
 };
 
@@ -17,6 +19,8 @@ export default function ClothingCard({
   image,
   color,
   style,
+  selected,
+  outfitLabels,
   onClick,
 }: ClothingCardProps) {
   return (
@@ -26,11 +30,11 @@ export default function ClothingCard({
         background: "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012)), var(--surface-3)",
         borderRadius: "8px",
         overflow: "hidden",
-        border: "1px solid var(--border-glass)",
+        border: selected ? "2px solid var(--gold)" : "1px solid var(--border-glass)",
         cursor: "pointer",
         transition: "transform 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease",
         position: "relative",
-        boxShadow: "0 16px 44px rgba(0,0,0,0.22)",
+        boxShadow: selected ? "0 20px 56px rgba(255,205,104,0.18)" : "0 16px 44px rgba(0,0,0,0.22)",
       }}
       onMouseEnter={(e) => {
         const el = e.currentTarget as HTMLDivElement;
@@ -70,6 +74,11 @@ export default function ClothingCard({
         />
       </div>
 
+      {selected && (
+        <div style={{ position: "absolute", top: "14px", right: "14px", padding: "6px 10px", borderRadius: "999px", background: "rgba(255, 184, 0, 0.16)", color: "var(--gold)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Activa
+        </div>
+      )}
       {/* INFO */}
       <div
         style={{
@@ -102,6 +111,31 @@ export default function ClothingCard({
         >
           {title}
         </div>
+        {outfitLabels?.length ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+            <span style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--text-muted)" }}>
+              Usado en {outfitLabels.length} outfit{outfitLabels.length === 1 ? "" : "s"}
+            </span>
+            {outfitLabels.slice(0, 2).map((label) => (
+              <span
+                key={label}
+                style={{
+                  fontSize: "10px",
+                  padding: "4px 8px",
+                  borderRadius: "999px",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                {label}
+              </span>
+            ))}
+            {outfitLabels.length > 2 && (
+              <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>+{outfitLabels.length - 2} más</span>
+            )}
+          </div>
+        ) : null}
         {(color || style) && (
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "12px" }}>
             {color && (

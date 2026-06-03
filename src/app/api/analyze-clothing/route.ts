@@ -1,20 +1,11 @@
 import { NextResponse } from "next/server";
+import type { ClothingAnalysis } from "@/types/clothing";
 
-type ClothingAnalysis = {
-  title: string;
-  category: string;
-  type: string;
-  color: string;
-  style: string;
-  season: string;
-  tags: string[];
-  description: string;
-  details: string;
-  fabric: string;
-  fit: string;
-  occasion: string;
-  formality: string;
-};
+const DEFAULT_OUTFIT_SLOT = "accessory";
+
+function isValidClothingAnalysis(value: unknown): value is ClothingAnalysis {
+  return typeof value === "object" && value !== null;
+}
 
 const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -34,6 +25,11 @@ function emptyAnalysis(): ClothingAnalysis {
     fit: "",
     occasion: "",
     formality: "",
+    outfit_slot: "accessory",
+    outfit_anchor_x: 50,
+    outfit_anchor_y: 50,
+    outfit_width: 30,
+    outfit_layer: 5,
   };
 }
 
@@ -44,6 +40,12 @@ function cleanText(value: unknown) {
 function cleanTags(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value.map(cleanText).filter(Boolean).slice(0, 8);
+}
+
+function cleanNumber(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
 }
 
 function normalizeAnalysis(value: unknown): ClothingAnalysis {
@@ -64,6 +66,11 @@ function normalizeAnalysis(value: unknown): ClothingAnalysis {
     fit: cleanText(record.fit),
     occasion: cleanText(record.occasion),
     formality: cleanText(record.formality),
+    outfit_slot: cleanText(record.outfit_slot) || "accessory",
+    outfit_anchor_x: cleanNumber(record.outfit_anchor_x, 50, 0, 100),
+    outfit_anchor_y: cleanNumber(record.outfit_anchor_y, 50, 0, 100),
+    outfit_width: cleanNumber(record.outfit_width, 30, 5, 95),
+    outfit_layer: Math.round(cleanNumber(record.outfit_layer, 5, 1, 20)),
   };
 }
 
@@ -197,6 +204,16 @@ Devuelve SOLO JSON valido, sin markdown, con estas claves:
 
 No inventes marca. Si algo no se ve con claridad, usa una inferencia prudente. Responde en español.`;
 
+  const promptWithOutfitMetadata = `${prompt}
+
+Incluye tambien estos campos tecnicos ocultos para ajustar la prenda a un maniqui 2D:
+- outfit_slot: upper, lower, outer, dress, shoes o accessory.
+- outfit_anchor_x: porcentaje horizontal del punto central recomendado en el lienzo.
+- outfit_anchor_y: porcentaje vertical del punto central recomendado en el lienzo.
+- outfit_width: porcentaje de ancho recomendado de la prenda en el lienzo.
+- outfit_layer: orden visual del 1 al 20.
+Valores base: upper 50/34/38/8, lower 50/58/35/6, dress 50/48/44/9, outer 50/36/46/12, shoes 50/86/34/10, accessory 50/28/24/14.`;
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -210,7 +227,7 @@ No inventes marca. Si algo no se ve con claridad, usa una inferencia prudente. R
           {
             role: "user",
             parts: [
-              { text: prompt },
+              { text: promptWithOutfitMetadata },
               { inline_data: inlineData },
             ],
           },
@@ -248,6 +265,11 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const image = formData.get("image");
     const imageUrl = getString(formData, "imageUrl");
+
+    if (!(image instanceof File && image.size > 0) && !imageUrl) {
+      return NextResponse.json({ error: "No se recibio ninguna imagen." }, { status: 400 });
+    }
+
     const inlineData =
       image instanceof File && image.size > 0
         ? await fileToInlineData(image)

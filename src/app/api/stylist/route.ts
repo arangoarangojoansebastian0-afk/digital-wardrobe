@@ -1,27 +1,9 @@
 import { NextResponse } from "next/server";
+import type { ClothingItem } from "@/types/clothing";
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
-};
-
-type ClothingItem = {
-  id: string | number;
-  title?: string | null;
-  category?: string | null;
-  image?: string | null;
-  type?: string | null;
-  color?: string | null;
-  style?: string | null;
-  season?: string | null;
-  description?: string | null;
-  details?: string | null;
-  fabric?: string | null;
-  fit?: string | null;
-  occasion?: string | null;
-  formality?: string | null;
-  tags?: string[] | null;
-  is_available?: boolean; 
 };
 
 type RequestContext = {
@@ -56,7 +38,6 @@ type GeminiContent = {
 
 const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 const MAX_WARDROBE_IMAGES = 3;
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -185,7 +166,7 @@ REGLAS DE COMPRAS Y ENLACES INTEGRADOS:
 REGLAS CRUCIALES DE OBLIGATORIEDAD Y FORMATO (ESTRICTAS):
 4. OUTFIT COMPLETO OBLIGATORIO: Cada propuesta debe incluir una pieza superior Y una inferior del armario. Prohibido dejar el look a medias.
 5. FORMATO PROHIBIDO (NO ASTERISCOS ni LISTAS): Está terminantemente prohibido usar doble asterisco (**) o guiones de listas. Escribe en texto plano y corrido usando párrafos dinámicos para móvil. Resalta las prendas usando comillas simples (ej: 'Camiseta negra oversize').
-6. INTEGRACIÓN DE METADATA PARA EL FRONTEND (ID TRACKING): Al final de tu propuesta de outfit, e inmediatamente después de cerrar tu párrafo, añade OBLIGATORIAMENTE un bloque JSON oculto pegado en una sola línea que contenga los IDs de las prendas que usaste para que el frontend pueda pintar sus fotos en el chat. Usa estrictamente este formato: JSON_IDS: {"upper": "ID", "lower": "ID", "outer": "ID"}`;
+6. INTEGRACIÓN DE METADATA PARA EL FRONTEND (ID TRACKING): Al final de tu propuesta de outfit, e inmediatamente después de cerrar tu párrafo, añade OBLIGATORIAMENTE un bloque JSON oculto pegado en una sola línea que contenga los IDs de las prendas que usaste para que el frontend pueda pintar sus fotos en el chat. Usa estrictamente este formato: JSON_IDS: {"upper": "ID", "lower": "ID", "outer": "ID", "dress": "ID", "shoes": "ID", "accessory": "ID"}`;
 }
 
 function buildAnalysisPrompt() {
@@ -212,7 +193,7 @@ function toGeminiContents(messages: ChatMessage[]): GeminiContent[] {
     }));
 }
 
-async function imageUrlToPart(item: any, index: number) {
+async function imageUrlToPart(item: ClothingItem, index: number) {
   if (!item.image) return [];
 
   try {
