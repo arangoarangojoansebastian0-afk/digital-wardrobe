@@ -37,6 +37,12 @@ function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function cleanSlot(value: unknown) {
+  const slot = cleanText(value).toLowerCase();
+  const allowedSlots = ["upper", "lower", "outer", "dress", "shoes", "accessory"] as const;
+  return allowedSlots.includes(slot as any) ? slot as typeof allowedSlots[number] : DEFAULT_OUTFIT_SLOT;
+}
+
 function cleanTags(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value.map(cleanText).filter(Boolean).slice(0, 8);
@@ -66,7 +72,7 @@ function normalizeAnalysis(value: unknown): ClothingAnalysis {
     fit: cleanText(record.fit),
     occasion: cleanText(record.occasion),
     formality: cleanText(record.formality),
-    outfit_slot: cleanText(record.outfit_slot) || "accessory",
+    outfit_slot: cleanSlot(record.outfit_slot),
     outfit_anchor_x: cleanNumber(record.outfit_anchor_x, 50, 0, 100),
     outfit_anchor_y: cleanNumber(record.outfit_anchor_y, 50, 0, 100),
     outfit_width: cleanNumber(record.outfit_width, 30, 5, 95),
