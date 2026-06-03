@@ -100,6 +100,13 @@ export async function POST(req: Request) {
     const rawText = await response.text().catch(() => "");
     console.log("NANO_BANANA_RAW_RESPONSE_STATUS", response.status);
     console.log("NANO_BANANA_RAW_RESPONSE_BODY", rawText);
+    try {
+      const hdrs: Record<string, string> = {};
+      for (const [k, v] of response.headers.entries()) hdrs[k] = v;
+      console.log("NANO_BANANA_RAW_HEADERS", hdrs);
+    } catch (e) {
+      console.warn("Could not log response headers", e);
+    }
 
     let parsed: unknown;
     try { parsed = JSON.parse(rawText); } catch { parsed = rawText; }
