@@ -595,7 +595,9 @@ export default function Home() {
               <div className="soft-divider" style={{ marginTop: "24px", height: "1px" }} />
             </div>
 
-            <MannequinViewer clothes={clothes} selectedClothing={selectedClothing} selectedOutfit={selectedOutfit} />
+            <div style={{ padding: "24px", borderRadius: "24px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "var(--text-muted)", fontSize: "13px" }}>
+              El visor de armario se ha movido a la pestaña de Outfits. Usa esa sección para crear y previsualizar combinaciones sobre el cuerpo.
+            </div>
 
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>

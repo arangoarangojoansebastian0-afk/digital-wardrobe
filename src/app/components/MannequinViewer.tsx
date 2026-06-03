@@ -6,12 +6,12 @@ import type { BodyProfile, BodyShape } from "@/types/mannequin";
 import type { ClothingItem, Outfit, ClothingSlot } from "@/types/clothing";
 
 const SLOT_DEFAULT_POSITIONS: Record<ClothingSlot, { x: number; y: number; width: number; height: number; rotate: number; clipPath: string; borderRadius: string }> = {
-  upper: { x: 50, y: 28, width: 52, height: 38, rotate: -1, clipPath: "ellipse(54% 50% at 50% 42%)", borderRadius: "34px" },
-  lower: { x: 50, y: 58, width: 44, height: 46, rotate: 0, clipPath: "ellipse(48% 65% at 50% 20%)", borderRadius: "38px" },
-  outer: { x: 50, y: 26, width: 58, height: 48, rotate: 0, clipPath: "ellipse(56% 60% at 50% 40%)", borderRadius: "36px" },
-  dress: { x: 50, y: 42, width: 52, height: 86, rotate: 0, clipPath: "ellipse(50% 76% at 50% 28%)", borderRadius: "44px" },
-  shoes: { x: 50, y: 92, width: 28, height: 18, rotate: 0, clipPath: "ellipse(48% 48% at 50% 48%)", borderRadius: "30px" },
-  accessory: { x: 58, y: 18, width: 18, height: 18, rotate: 6, clipPath: "circle(44% at 50% 50%)", borderRadius: "999px" },
+  upper: { x: 50, y: 30, width: 48, height: 40, rotate: -1, clipPath: "ellipse(54% 50% at 50% 42%)", borderRadius: "30px" },
+  lower: { x: 50, y: 60, width: 42, height: 44, rotate: 0, clipPath: "ellipse(46% 62% at 50% 18%)", borderRadius: "36px" },
+  outer: { x: 50, y: 28, width: 58, height: 50, rotate: 0, clipPath: "ellipse(56% 58% at 50% 38%)", borderRadius: "36px" },
+  dress: { x: 50, y: 42, width: 50, height: 88, rotate: 0, clipPath: "ellipse(50% 78% at 50% 28%)", borderRadius: "42px" },
+  shoes: { x: 50, y: 92, width: 24, height: 18, rotate: 0, clipPath: "ellipse(46% 48% at 50% 48%)", borderRadius: "30px" },
+  accessory: { x: 62, y: 20, width: 16, height: 16, rotate: 6, clipPath: "circle(44% at 50% 50%)", borderRadius: "999px" },
 };
 
 function normalizeSlot(value: unknown): ClothingSlot {
