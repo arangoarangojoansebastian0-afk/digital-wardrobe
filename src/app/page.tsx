@@ -646,29 +646,42 @@ export default function Home() {
               outfits={outfits}
               selectedOutfit={selectedOutfit}
               initialSelectedItems={draftOutfitItems}
+              selectedItems={draftOutfitItems}
               onSaveOutfit={saveOutfit}
+              onSelectItems={setDraftOutfitItems}
               onDeleteOutfit={deleteOutfit}
               onPreviewOutfit={previewOutfit}
               onClearPreview={clearOutfitPreview}
             />
-            {selectedOutfit && (
-              <div style={{ marginTop: "28px", display: "grid", gap: "18px" }}>
+            <div style={{ marginTop: "28px", display: "grid", gap: "18px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
                   <div>
                     <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 300, color: "var(--text-primary)" }}>Vista previa del outfit</div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>Selecciona otro outfit o cierra la vista previa para ver más combinaciones.</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                      {selectedOutfit
+                        ? "Selecciona otro outfit o cierra la vista previa para ver más combinaciones."
+                        : Object.values(draftOutfitItems).some(Boolean)
+                          ? "Mira cómo quedan las prendas que estás combinando."
+                          : "Elige al menos una prenda para ver el outfit en el mannequin."
+                      }
+                    </div>
                   </div>
-                  <button
-                    onClick={clearOutfitPreview}
-                    style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "14px", color: "var(--text-muted)", padding: "12px 16px", cursor: "pointer", fontSize: "12px" }}
-                  >
-                    Cerrar vista
-                  </button>
+                  {selectedOutfit && (
+                    <button
+                      onClick={clearOutfitPreview}
+                      style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "14px", color: "var(--text-muted)", padding: "12px 16px", cursor: "pointer", fontSize: "12px" }}
+                    >
+                      Cerrar vista
+                    </button>
+                  )}
                 </div>
 
-                <MannequinViewer clothes={clothes} selectedOutfit={selectedOutfit} selectedClothing={null} />
+                <MannequinViewer
+                  clothes={clothes}
+                  selectedOutfit={selectedOutfit ?? (Object.values(draftOutfitItems).some(Boolean) ? { id: "draft-preview", user_id: null, title: "Vista previa", description: "Outfit en creación", item_ids: draftOutfitItems } : null)}
+                  selectedClothing={null}
+                />
               </div>
-            )}
           </>
         )}
 

@@ -12,7 +12,9 @@ type OutfitsPanelProps = {
   outfits: Outfit[];
   selectedOutfit: Outfit | null;
   initialSelectedItems?: OutfitItemIds;
+  selectedItems?: OutfitItemIds;
   onSaveOutfit: (payload: { title: string; description?: string; item_ids: OutfitItemIds }) => Promise<void>;
+  onSelectItems?: (item_ids: OutfitItemIds) => void;
   onDeleteOutfit: (id: string | number) => Promise<void>;
   onPreviewOutfit: (outfit: Outfit) => void;
   onClearPreview: () => void;
@@ -34,16 +36,21 @@ function formatSlotLabel(slot: OutfitSlot) {
   }
 }
 
-export default function OutfitsPanel({ clothes, outfits, selectedOutfit, initialSelectedItems, onSaveOutfit, onDeleteOutfit, onPreviewOutfit, onClearPreview }: OutfitsPanelProps) {
+export default function OutfitsPanel({ clothes, outfits, selectedOutfit, initialSelectedItems, selectedItems: selectedItemsProp, onSaveOutfit, onSelectItems, onDeleteOutfit, onPreviewOutfit, onClearPreview }: OutfitsPanelProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedItems, setSelectedItems] = useState<OutfitItemIds>({});
+  const [selectedItems, setSelectedItems] = useState<OutfitItemIds>(selectedItemsProp || initialSelectedItems || {});
 
   useEffect(() => {
+    if (selectedItemsProp && Object.keys(selectedItemsProp).length > 0) {
+      setSelectedItems(selectedItemsProp);
+      return;
+    }
+
     if (initialSelectedItems && Object.keys(initialSelectedItems).length > 0) {
       setSelectedItems((prev) => ({ ...prev, ...initialSelectedItems }));
     }
-  }, [initialSelectedItems]);
+  }, [initialSelectedItems, selectedItemsProp]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -52,16 +59,12 @@ export default function OutfitsPanel({ clothes, outfits, selectedOutfit, initial
     [clothes]
   );
 
-  useEffect(() => {
-    if (initialSelectedItems) {
-      setSelectedItems((prev) => ({ ...prev, ...initialSelectedItems }));
-    }
-  }, [initialSelectedItems]);
-
   const canSave = Boolean(title.trim()) && Object.values(selectedItems).filter(Boolean).length >= 1;
 
   const handleSelect = (slot: OutfitSlot, value: string) => {
-    setSelectedItems((prev) => ({ ...prev, [slot]: value || undefined }));
+    const nextItems = { ...selectedItems, [slot]: value || undefined };
+    setSelectedItems(nextItems);
+    onSelectItems?.(nextItems);
   };
 
   const save = async () => {

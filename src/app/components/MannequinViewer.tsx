@@ -6,12 +6,12 @@ import type { BodyProfile, BodyShape } from "@/types/mannequin";
 import type { ClothingItem, Outfit, ClothingSlot } from "@/types/clothing";
 
 const SLOT_DEFAULT_POSITIONS: Record<ClothingSlot, { x: number; y: number; width: number; height: number; rotate: number; clipPath: string; borderRadius: string }> = {
-  upper: { x: 50, y: 24, width: 42, height: 42, rotate: -2, clipPath: "ellipse(52% 58% at 50% 42%)", borderRadius: "32px" },
-  lower: { x: 50, y: 56, width: 46, height: 48, rotate: 0, clipPath: "ellipse(48% 68% at 50% 24%)", borderRadius: "38px" },
-  outer: { x: 50, y: 22, width: 46, height: 46, rotate: -1, clipPath: "ellipse(54% 62% at 50% 40%)", borderRadius: "34px" },
-  dress: { x: 50, y: 44, width: 48, height: 80, rotate: 0, clipPath: "ellipse(48% 80% at 50% 28%)", borderRadius: "42px" },
-  shoes: { x: 50, y: 90, width: 34, height: 22, rotate: 0, clipPath: "ellipse(52% 32% at 50% 48%)", borderRadius: "28px" },
-  accessory: { x: 65, y: 18, width: 18, height: 20, rotate: 10, clipPath: "ellipse(50% 50% at 50% 50%)", borderRadius: "999px" },
+  upper: { x: 50, y: 28, width: 52, height: 38, rotate: -1, clipPath: "ellipse(54% 50% at 50% 42%)", borderRadius: "34px" },
+  lower: { x: 50, y: 58, width: 44, height: 46, rotate: 0, clipPath: "ellipse(48% 65% at 50% 20%)", borderRadius: "38px" },
+  outer: { x: 50, y: 26, width: 58, height: 48, rotate: 0, clipPath: "ellipse(56% 60% at 50% 40%)", borderRadius: "36px" },
+  dress: { x: 50, y: 42, width: 52, height: 86, rotate: 0, clipPath: "ellipse(50% 76% at 50% 28%)", borderRadius: "44px" },
+  shoes: { x: 50, y: 92, width: 28, height: 18, rotate: 0, clipPath: "ellipse(48% 48% at 50% 48%)", borderRadius: "30px" },
+  accessory: { x: 58, y: 18, width: 18, height: 18, rotate: 6, clipPath: "circle(44% at 50% 50%)", borderRadius: "999px" },
 };
 
 function normalizeSlot(value: unknown): ClothingSlot {
@@ -48,45 +48,45 @@ function getScaled(value: number, base: number) {
   return clamp((value / base) * 100, 30, 65);
 }
 
-function buildSilhouettePath(profile: BodyProfile, width: number, height: number) {
-  const headHeight = height * 0.12;
-  const shoulder = clamp(getScaled(profile.shoulder_width_cm, 38), 34, 58);
-  const chest = clamp(getScaled(profile.chest_circumference_cm, 90), 40, 60);
-  const waist = clamp(getScaled(profile.waist_circumference_cm, 70), 32, 48);
-  const hip = clamp(getScaled(profile.hip_circumference_cm, 95), 44, 64);
+function buildSilhouetteShape(profile: BodyProfile, width: number, height: number) {
+  const headRadius = width * 0.095;
+  const headCenterY = headRadius + 4;
+  const shoulder = clamp(getScaled(profile.shoulder_width_cm, 38), 34, 56);
+  const chest = clamp(getScaled(profile.chest_circumference_cm, 90), 42, 60);
+  const waist = clamp(getScaled(profile.waist_circumference_cm, 70), 30, 46);
+  const hip = clamp(getScaled(profile.hip_circumference_cm, 95), 46, 64);
   const waistY = height * 0.32;
-  const hipY = height * 0.52;
-  const kneeY = height * 0.75;
+  const hipY = height * 0.50;
+  const kneeY = height * 0.72;
   const footY = height * 0.98;
 
   const centerX = width / 2;
-  const leftShoulder = centerX - shoulder * 0.6;
-  const rightShoulder = centerX + shoulder * 0.6;
+  const leftShoulder = centerX - shoulder * 0.5;
+  const rightShoulder = centerX + shoulder * 0.5;
   const leftChest = centerX - chest * 0.45;
   const rightChest = centerX + chest * 0.45;
-  const leftWaist = centerX - waist * 0.35;
-  const rightWaist = centerX + waist * 0.35;
-  const leftHip = centerX - hip * 0.45;
-  const rightHip = centerX + hip * 0.45;
+  const leftWaist = centerX - waist * 0.36;
+  const rightWaist = centerX + waist * 0.36;
+  const leftHip = centerX - hip * 0.5;
+  const rightHip = centerX + hip * 0.5;
 
-  return [`
-    M ${centerX},0
-    C ${centerX - 16},${headHeight * 0.6} ${leftShoulder - 10},${headHeight * 0.9} ${leftShoulder},${headHeight}
-    L ${leftShoulder},${headHeight + 18}
-    C ${leftShoulder},${headHeight + 26} ${leftChest - 8},${headHeight + 42} ${leftChest},${headHeight + 50}
-    C ${leftChest - 10},${waistY - 10} ${leftWaist + 8},${waistY + 12} ${leftWaist},${waistY}
-    C ${leftWaist - 6},${hipY - 6} ${leftHip + 6},${hipY + 14} ${leftHip},${hipY}
+  const path = [`
+    M ${leftShoulder},${headCenterY + headRadius * 0.6}
+    C ${leftShoulder - 10},${headCenterY + headRadius * 0.2} ${leftChest - 8},${headCenterY + headRadius * 2} ${leftChest},${headCenterY + headRadius * 2.2}
+    C ${leftChest - 10},${waistY - 10} ${leftWaist + 8},${waistY + 6} ${leftWaist},${waistY}
+    C ${leftWaist - 4},${hipY - 6} ${leftHip + 8},${hipY + 10} ${leftHip},${hipY}
     L ${leftHip + 8},${kneeY}
-    C ${leftHip + 10},${kneeY + 18} ${leftHip + 18},${footY - 6} ${leftHip + 18},${footY}
+    C ${leftHip + 10},${kneeY + 16} ${leftHip + 18},${footY - 8} ${leftHip + 18},${footY}
     L ${rightHip - 18},${footY}
-    C ${rightHip - 18},${footY - 6} ${rightHip - 10},${kneeY + 18} ${rightHip - 8},${kneeY}
+    C ${rightHip - 18},${footY - 8} ${rightHip - 10},${kneeY + 16} ${rightHip - 8},${kneeY}
     L ${rightHip},${hipY}
-    C ${rightHip - 6},${hipY + 14} ${rightWaist + 6},${waistY - 6} ${rightWaist},${waistY}
-    C ${rightWaist + 8},${waistY + 12} ${rightChest + 10},${headHeight + 48} ${rightChest},${headHeight + 50}
-    C ${rightShoulder},${headHeight + 44} ${rightShoulder},${headHeight + 28} ${rightShoulder},${headHeight + 18}
-    C ${rightShoulder + 10},${headHeight * 0.9} ${centerX + 16},${headHeight * 0.6} ${centerX},0
+    C ${rightHip - 8},${hipY + 10} ${rightWaist - 4},${waistY - 4} ${rightWaist},${waistY}
+    C ${rightWaist + 8},${waistY + 6} ${rightChest + 10},${headCenterY + headRadius * 2.2} ${rightChest},${headCenterY + headRadius * 2.2}
+    C ${rightShoulder + 10},${headCenterY + headRadius * 0.2} ${rightShoulder + 2},${headCenterY + headRadius * 0.8} ${rightShoulder},${headCenterY + headRadius * 0.8}
     Z
   `].join(" ");
+
+  return { path, headRadius, headCenterY };
 }
 
 export default function MannequinViewer({
@@ -128,9 +128,8 @@ export default function MannequinViewer({
 
   const displayProfile = profile ?? DEFAULT_BODY_PROFILE;
 
-  const silhouettePath = useMemo(() => {
-    return buildSilhouettePath(displayProfile, 220, 520);
-  }, [displayProfile]);
+  const silhouette = useMemo(() => buildSilhouetteShape(displayProfile, 220, 520), [displayProfile]);
+  const silhouettePath = silhouette.path;
 
   const outfitItems = useMemo(() => {
     if (!selectedOutfit?.item_ids) return [];
@@ -187,11 +186,19 @@ export default function MannequinViewer({
             <svg viewBox="0 0 220 520" width="100%" height="100%" style={{ display: "block" }}>
               <defs>
                 <linearGradient id="bodyGradient" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
+                  <stop offset="0%" stopColor="rgba(255,255,255,0.42)" />
                   <stop offset="100%" stopColor="rgba(255,255,255,0.08)" />
                 </linearGradient>
+                <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="6" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
               </defs>
-              <path d={silhouettePath} fill="url(#bodyGradient)" stroke="rgba(255,255,255,0.35)" strokeWidth="1.6" />
+              <circle cx="110" cy={silhouette.headCenterY} r={silhouette.headRadius} fill="rgba(255,255,255,0.14)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2" />
+              <path d={silhouettePath} fill="url(#bodyGradient)" stroke="rgba(255,255,255,0.35)" strokeWidth="1.6" strokeLinejoin="round" filter="url(#softGlow)" />
             </svg>
 
             {overlayClothes.map((item) => {
