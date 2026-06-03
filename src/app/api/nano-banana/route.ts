@@ -75,13 +75,29 @@ export async function POST(req: Request) {
       "Content-Type": "application/json",
     };
 
-    if (API_URL.includes("googleapis.com")) {
-      headers["x-goog-api-key"] = API_KEY;
-    } else {
-      headers["Authorization"] = `Bearer ${API_KEY}`;
+    const isGoogleImage = API_URL.includes("generativelanguage.googleapis.com/v1/images");
+
+    // If using Google's Generative API for images, prefer attaching the API key
+    // as a query parameter (`?key=...`) which is accepted by that endpoint.
+    let fetchUrl = API_URL;
+    if (isGoogleImage && API_KEY) {
+      try {
+        const u = new URL(API_URL);
+        if (!u.searchParams.has("key")) {
+          u.searchParams.set("key", API_KEY);
+        }
+        fetchUrl = u.toString();
+      } catch (e) {
+        // if URL parsing fails, fall back to the original API_URL
+        console.warn("Could not append key to API_URL", e);
+      }
     }
 
-    const isGoogleImage = API_URL.includes("generativelanguage.googleapis.com/v1/images");
+    if (!isGoogleImage) {
+      // For non-Google providers use bearer token in Authorization
+      if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
+    }
+
     const requestBody = isGoogleImage
       ? {
           model: "image-bison-001",
@@ -97,16 +113,21 @@ export async function POST(req: Request) {
           style: "realistic mannequin",
         };
 
-    const response = await fetch(API_URL, {
+    const response = await fetch(fetchUrl, {
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error("Nano Banana API error:", errorBody);
-      return NextResponse.json({ error: "Nano Banana no respondió correctamente.", message: errorBody }, { status: 502 });
+      const text = await response.text().catch(() => "");
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(text);
+      } catch {}
+      console.error("Nano Banana API error status:", response.status, parsed ?? text);
+      const message = parsed?.error || parsed?.message || text || `Status ${response.status}`;
+      return NextResponse.json({ error: "Nano Banana no respondió correctamente.", message }, { status: 502 });
     }
 
     const data = await response.json();
