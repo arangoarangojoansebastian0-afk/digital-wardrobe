@@ -130,19 +130,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nano Banana no respondió correctamente.", message }, { status: 502 });
     }
 
-    const data = await response.json();
-    const rawImage =
-      data?.generated_image ||
-      data?.image_base64 ||
-      data?.result?.base64 ||
-      data?.output?.[0]?.base64 ||
-      data?.output?.[0]?.image_url ||
-      data?.image_url ||
-      data?.url ||
-      data?.images?.[0]?.imageUri ||
-      data?.data?.[0]?.image ||
-      data?.data?.[0]?.imageBytes ||
-      data?.imageBytes;
+    // TEMP LOG: volcar respuesta cruda para depuración
+    const rawText = await response.text().catch(() => "");
+    console.log("NANO_BANANA_RAW_RESPONSE_STATUS", response.status);
+    console.log("NANO_BANANA_RAW_RESPONSE_BODY", rawText);
+
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      parsed = rawText;
+    }
+
+    let rawImage: any = undefined;
+    if (typeof parsed === "string") {
+      rawImage = parsed;
+    } else if (parsed && typeof parsed === "object") {
+      rawImage =
+        parsed?.generated_image ||
+        parsed?.image_base64 ||
+        parsed?.result?.base64 ||
+        parsed?.output?.[0]?.base64 ||
+        parsed?.output?.[0]?.image_url ||
+        parsed?.image_url ||
+        parsed?.url ||
+        parsed?.images?.[0]?.imageUri ||
+        parsed?.data?.[0]?.image ||
+        parsed?.data?.[0]?.imageBytes ||
+        parsed?.imageBytes;
+    }
 
     if (!rawImage) {
       console.error("Nano Banana response no contiene imagen válida:", data);
