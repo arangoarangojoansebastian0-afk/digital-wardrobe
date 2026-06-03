@@ -77,98 +77,91 @@ export async function POST(req: Request) {
 
     const isGoogleImage = API_URL.includes("generativelanguage.googleapis.com/v1/images");
 
-    // If using Google's Generative API for images, prefer attaching the API key
-    // as a query parameter (`?key=...`) which is accepted by that endpoint.
     let fetchUrl = API_URL;
     if (isGoogleImage && API_KEY) {
       try {
         const u = new URL(API_URL);
-        if (!u.searchParams.has("key")) {
-          u.searchParams.set("key", API_KEY);
-        }
+        if (!u.searchParams.has("key")) u.searchParams.set("key", API_KEY);
         fetchUrl = u.toString();
       } catch (e) {
-        // if URL parsing fails, fall back to the original API_URL
         console.warn("Could not append key to API_URL", e);
       }
     }
 
-    if (!isGoogleImage) {
-      // For non-Google providers use bearer token in Authorization
-      if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
-    }
+    if (!isGoogleImage && API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
 
     const requestBody = isGoogleImage
-      ? {
-          model: "image-bison-001",
-          prompt,
-          image_format: "PNG",
-        }
-      : {
-          prompt,
-          width: 640,
-          height: 960,
-          quality: "high",
-          preserve_body: true,
-          style: "realistic mannequin",
-        };
+      ? { model: "image-bison-001", prompt, image_format: "PNG" }
+      : { prompt, width: 640, height: 960, quality: "high", preserve_body: true, style: "realistic mannequin" };
 
-    const response = await fetch(fetchUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      let parsed: any = null;
-      try {
-        parsed = JSON.parse(text);
-      } catch {}
-      console.error("Nano Banana API error status:", response.status, parsed ?? text);
-      const message = parsed?.error || parsed?.message || text || `Status ${response.status}`;
-      return NextResponse.json({ error: "Nano Banana no respondió correctamente.", message }, { status: 502 });
-    }
+    const response = await fetch(fetchUrl, { method: "POST", headers, body: JSON.stringify(requestBody) });
 
     // TEMP LOG: volcar respuesta cruda para depuración
     const rawText = await response.text().catch(() => "");
     console.log("NANO_BANANA_RAW_RESPONSE_STATUS", response.status);
     console.log("NANO_BANANA_RAW_RESPONSE_BODY", rawText);
 
-    let parsed: any = null;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      parsed = rawText;
+    let parsed: unknown;
+    try { parsed = JSON.parse(rawText); } catch { parsed = rawText; }
+
+    if (!response.ok) {
+      let message = rawText || `Status ${response.status}`;
+      if (parsed && typeof parsed === "object") {
+        const obj = parsed as Record<string, unknown>;
+        if (typeof obj["error"] === "string") message = obj["error"] as string;
+        else if (typeof obj["message"] === "string") message = obj["message"] as string;
+      }
+      console.error("Nano Banana API error status:", response.status, parsed);
+      return NextResponse.json({ error: "Nano Banana no respondió correctamente.", message }, { status: 502 });
     }
 
-    let rawImage: any = undefined;
+    let rawImage: string | undefined = undefined;
     if (typeof parsed === "string") {
       rawImage = parsed;
     } else if (parsed && typeof parsed === "object") {
-      rawImage =
-        parsed?.generated_image ||
-        parsed?.image_base64 ||
-        parsed?.result?.base64 ||
-        parsed?.output?.[0]?.base64 ||
-        parsed?.output?.[0]?.image_url ||
-        parsed?.image_url ||
-        parsed?.url ||
-        parsed?.images?.[0]?.imageUri ||
-        parsed?.data?.[0]?.image ||
-        parsed?.data?.[0]?.imageBytes ||
-        parsed?.imageBytes;
+      const obj = parsed as Record<string, unknown>;
+
+      const candidates: Array<string | undefined> = [];
+      if (typeof obj["generated_image"] === "string") candidates.push(obj["generated_image"] as string);
+      if (typeof obj["image_base64"] === "string") candidates.push(obj["image_base64"] as string);
+
+      const result = obj["result"];
+      if (result && typeof result === "object" && typeof (result as Record<string, unknown>)["base64"] === "string") candidates.push((result as Record<string, unknown>)["base64"] as string);
+
+      const output = obj["output"];
+      if (Array.isArray(output) && output.length > 0 && typeof output[0] === "object") {
+        const first = output[0] as Record<string, unknown>;
+        if (typeof first["base64"] === "string") candidates.push(first["base64"] as string);
+        if (typeof first["image_url"] === "string") candidates.push(first["image_url"] as string);
+      }
+
+      if (typeof obj["image_url"] === "string") candidates.push(obj["image_url"] as string);
+      if (typeof obj["url"] === "string") candidates.push(obj["url"] as string);
+
+      const images = obj["images"];
+      if (Array.isArray(images) && images.length > 0 && typeof images[0] === "object") {
+        const firstImg = images[0] as Record<string, unknown>;
+        if (typeof firstImg["imageUri"] === "string") candidates.push(firstImg["imageUri"] as string);
+      }
+
+      const dataArr = obj["data"];
+      if (Array.isArray(dataArr) && dataArr.length > 0 && typeof dataArr[0] === "object") {
+        const firstData = dataArr[0] as Record<string, unknown>;
+        if (typeof firstData["image"] === "string") candidates.push(firstData["image"] as string);
+        if (typeof firstData["imageBytes"] === "string") candidates.push(firstData["imageBytes"] as string);
+      }
+
+      if (typeof obj["imageBytes"] === "string") candidates.push(obj["imageBytes"] as string);
+
+      rawImage = candidates.find((c) => typeof c === "string");
     }
 
     if (!rawImage) {
-      console.error("Nano Banana response no contiene imagen válida:", data);
-      return NextResponse.json({ error: "La API de Nano Banana no devolvió imagen generada." }, { status: 502 });
+      console.error("Nano Banana response no contiene imagen válida:", parsed ?? rawText);
+      return NextResponse.json({ error: "La API de Nano Banana no devolvió imagen generada.", debug: parsed ?? rawText }, { status: 502 });
     }
 
-    const generatedImage = typeof rawImage === "string" && rawImage.startsWith("http")
-      ? rawImage
-      : `data:image/png;base64,${rawImage}`;
-
+    const generatedImage = typeof rawImage === "string" && (rawImage as string).startsWith("http") ? (rawImage as string) : `data:image/png;base64,${rawImage}`;
     return NextResponse.json<NanoBananaResponse>({ generated_image: generatedImage });
   } catch (error) {
     console.error("Nano Banana route error:", error);
