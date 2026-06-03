@@ -27,6 +27,7 @@ type ClothingViewerModalProps = {
   clothing: ClothingViewerModalClothing | null;
   onClose: () => void;
   onDelete: (item: ClothingViewerModalClothing) => void;
+  onCreateOutfit?: (item: ClothingViewerModalClothing) => void;
 };
 
 export default function ClothingViewerModal(props: ClothingViewerModalProps) {
@@ -44,6 +45,7 @@ function ClothingViewerModalContent({
   clothing,
   onClose,
   onDelete,
+  onCreateOutfit,
 }: ClothingViewerModalProps) {
 
   const [zoom, setZoom] = useState(1);
@@ -553,6 +555,13 @@ function ClothingViewerModalContent({
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "auto", paddingBottom: isMobile ? "12px" : "0px" }}>
 
             <button
+              type="button"
+              onClick={() => {
+                if (typeof onCreateOutfit === "function") {
+                  onCreateOutfit(clothing);
+                }
+                onClose();
+              }}
               style={{
                 width: "100%",
                 background: "transparent",

@@ -14,7 +14,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import StylistChat from "./components/StylistChat";
 
 import { supabase } from "@/lib/supabase";
-import type { ClothingAnalysis, ClothingItem, Outfit, OutfitItemIds } from "@/types/clothing";
+import type { ClothingAnalysis, ClothingItem, ClothingSlot, Outfit, OutfitItemIds } from "@/types/clothing";
 
 type Tab = "armario" | "outfits" | "stylist" | "favoritos" | "ajustes";
 
@@ -52,6 +52,7 @@ export default function Home() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedClothing, setSelectedClothing] = useState<ClothingItem | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
+  const [draftOutfitItems, setDraftOutfitItems] = useState<OutfitItemIds>({});
   const [outfits, setOutfits] = useState<Outfit[]>([]);
 
   const highlightedItemIds = useMemo(() => {
@@ -435,6 +436,7 @@ export default function Home() {
     }
 
     await loadOutfits();
+    setDraftOutfitItems({});
   }
 
   async function saveSuggestedOutfit(payload: { title: string; description?: string; item_ids: Outfit["item_ids"] }): Promise<Outfit | null> {
@@ -486,6 +488,18 @@ export default function Home() {
 
   function clearOutfitPreview() {
     setSelectedOutfit(null);
+  }
+
+  function handleCreateOutfitFromClothing(item: ClothingItem) {
+    const allowedSlots: ClothingSlot[] = ["upper", "lower", "outer", "dress", "shoes", "accessory"];
+    const selectedSlot = allowedSlots.includes(item.outfit_slot as ClothingSlot)
+      ? (item.outfit_slot as ClothingSlot)
+      : "accessory";
+
+    setDraftOutfitItems({ [selectedSlot]: String(item.id) });
+    setSelectedOutfit(null);
+    setViewerOpen(false);
+    setActiveTab("outfits");
   }
 
   function applySuggestedOutfit(item_ids: OutfitItemIds) {
@@ -631,6 +645,7 @@ export default function Home() {
               clothes={clothes}
               outfits={outfits}
               selectedOutfit={selectedOutfit}
+              initialSelectedItems={draftOutfitItems}
               onSaveOutfit={saveOutfit}
               onDeleteOutfit={deleteOutfit}
               onPreviewOutfit={previewOutfit}
@@ -750,6 +765,7 @@ export default function Home() {
         clothing={selectedClothing}
         onClose={() => setViewerOpen(false)}
         onDelete={deleteClothing}
+        onCreateOutfit={handleCreateOutfitFromClothing}
       />
     </main>
   );

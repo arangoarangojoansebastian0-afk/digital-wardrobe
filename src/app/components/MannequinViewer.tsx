@@ -3,7 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { BodyProfile, BodyShape } from "@/types/mannequin";
-import type { ClothingItem, Outfit } from "@/types/clothing";
+import type { ClothingItem, Outfit, ClothingSlot } from "@/types/clothing";
+
+const SLOT_DEFAULT_POSITIONS: Record<ClothingSlot, { x: number; y: number; width: number }> = {
+  upper: { x: 50, y: 28, width: 38 },
+  lower: { x: 50, y: 56, width: 46 },
+  outer: { x: 50, y: 24, width: 45 },
+  dress: { x: 50, y: 45, width: 48 },
+  shoes: { x: 50, y: 88, width: 34 },
+  accessory: { x: 65, y: 20, width: 18 },
+};
+
+function normalizeSlot(value: unknown): ClothingSlot {
+  const slot = typeof value === "string" ? value.toLowerCase() : "";
+  const allowed: ClothingSlot[] = ["upper", "lower", "outer", "dress", "shoes", "accessory"];
+  return allowed.includes(slot as ClothingSlot) ? (slot as ClothingSlot) : "accessory";
+}
 
 const DEFAULT_BODY_PROFILE: BodyProfile = {
   height_cm: 170,
@@ -195,9 +210,11 @@ export default function MannequinViewer({
 
             {overlayClothes.map((item) => {
               if (!item.image) return null;
-              const x = clamp(item.outfit_anchor_x ?? 50, 0, 100);
-              const y = clamp(item.outfit_anchor_y ?? 50, 0, 100);
-              const width = clamp(item.outfit_width ?? 30, 16, 70);
+              const slot = normalizeSlot(item.outfit_slot);
+              const placement = SLOT_DEFAULT_POSITIONS[slot];
+              const x = clamp(item.outfit_anchor_x ?? placement.x, 0, 100);
+              const y = clamp(item.outfit_anchor_y ?? placement.y, 0, 100);
+              const width = clamp(item.outfit_width ?? placement.width, 16, 70);
               const zIndex = item.outfit_layer ?? 5;
 
               return (

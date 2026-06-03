@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ClothingItem, Outfit, OutfitItemIds } from "@/types/clothing";
 
 const OUTFIT_SLOTS = ["upper", "lower", "outer", "dress", "shoes", "accessory"] as const;
@@ -11,6 +11,7 @@ type OutfitsPanelProps = {
   clothes: ClothingItem[];
   outfits: Outfit[];
   selectedOutfit: Outfit | null;
+  initialSelectedItems?: OutfitItemIds;
   onSaveOutfit: (payload: { title: string; description?: string; item_ids: OutfitItemIds }) => Promise<void>;
   onDeleteOutfit: (id: string | number) => Promise<void>;
   onPreviewOutfit: (outfit: Outfit) => void;
@@ -33,10 +34,16 @@ function formatSlotLabel(slot: OutfitSlot) {
   }
 }
 
-export default function OutfitsPanel({ clothes, outfits, selectedOutfit, onSaveOutfit, onDeleteOutfit, onPreviewOutfit, onClearPreview }: OutfitsPanelProps) {
+export default function OutfitsPanel({ clothes, outfits, selectedOutfit, initialSelectedItems, onSaveOutfit, onDeleteOutfit, onPreviewOutfit, onClearPreview }: OutfitsPanelProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedItems, setSelectedItems] = useState<OutfitItemIds>({});
+
+  useEffect(() => {
+    if (initialSelectedItems && Object.keys(initialSelectedItems).length > 0) {
+      setSelectedItems((prev) => ({ ...prev, ...initialSelectedItems }));
+    }
+  }, [initialSelectedItems]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -44,6 +51,12 @@ export default function OutfitsPanel({ clothes, outfits, selectedOutfit, onSaveO
     () => clothes.filter((item) => item.is_available !== false),
     [clothes]
   );
+
+  useEffect(() => {
+    if (initialSelectedItems) {
+      setSelectedItems((prev) => ({ ...prev, ...initialSelectedItems }));
+    }
+  }, [initialSelectedItems]);
 
   const canSave = Boolean(title.trim()) && Object.values(selectedItems).filter(Boolean).length >= 1;
 
