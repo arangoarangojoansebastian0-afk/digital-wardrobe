@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import BodyProfileEditor from "./BodyProfileEditor";
 
@@ -12,7 +13,7 @@ const ACCENT_COLORS = [
   { name: "Azul",    color: "#7A9AAD", dim: "#4A6A7A" },
 ];
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ referencePhotoUrl, onReferencePhotoChange }: { referencePhotoUrl: string; onReferencePhotoChange: (url: string) => void; }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [initial, setInitial] = useState("?");
@@ -23,6 +24,9 @@ export default function SettingsPanel() {
     if (typeof window === "undefined") return "#C9A84C";
     return localStorage.getItem("accent-color") || "#C9A84C";
   });
+  const [referencePhoto, setReferencePhoto] = useState(referencePhotoUrl);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
 
   function applyColorStyle(color: string) {
     const found = ACCENT_COLORS.find((c) => c.color === color);
@@ -54,13 +58,18 @@ export default function SettingsPanel() {
         setName(n);
         setEmail(user.email || "");
         setInitial((n || user.email || "?")[0].toUpperCase());
+        const savedPhoto = user.user_metadata?.mannequin_photo_url || localStorage.getItem("mannequin-reference-photo") || "";
+        if (savedPhoto) {
+          setReferencePhoto(savedPhoto);
+          onReferencePhotoChange(savedPhoto);
+        }
       }
     });
 
     applyColorStyle(selectedColor);
 
     return () => window.removeEventListener("resize", handleResize);
-  }, [selectedColor]);
+  }, [selectedColor, onReferencePhotoChange]);
 
   const saveName = async () => {
     setSaving(true);
@@ -69,6 +78,60 @@ export default function SettingsPanel() {
     setSuccess("Guardado correctamente");
     setTimeout(() => setSuccess(""), 3000);
     setSaving(false);
+  };
+
+  const handleReferencePhotoUpload = async (file: File) => {
+    setUploadingPhoto(true);
+    setPhotoError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const removeBgResponse = await fetch("/api/remove-background", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!removeBgResponse.ok) {
+        const data = await removeBgResponse.json().catch(() => null) as { error?: string } | null;
+        throw new Error(data?.error || "No se pudo procesar la foto de referencia.");
+      }
+
+      const blob = await removeBgResponse.blob();
+      const processedFile = new File([blob], `mannequin-ref-${Date.now()}.png`, { type: "image/png" });
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) throw new Error("No hay sesión activa.");
+
+      const path = `${user.id}/mannequin-reference.png`;
+      const { error: uploadError } = await supabase.storage.from("clothes").upload(path, processedFile, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("clothes").getPublicUrl(path);
+      const publicUrl = urlData.publicUrl;
+      if (!publicUrl) throw new Error("No se pudo obtener la URL de la foto de referencia.");
+
+      await supabase.auth.updateUser({ data: { mannequin_photo_url: publicUrl } });
+      localStorage.setItem("mannequin-reference-photo", publicUrl);
+      onReferencePhotoChange(publicUrl);
+      setReferencePhoto(publicUrl);
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : "Error cargando foto de referencia.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleClearReferencePhoto = async () => {
+    try {
+      await supabase.auth.updateUser({ data: { mannequin_photo_url: "" } });
+    } catch (error) {
+      console.warn("No se pudo limpiar la foto de referencia", error);
+    }
+    localStorage.removeItem("mannequin-reference-photo");
+    onReferencePhotoChange("");
+    setReferencePhoto("");
   };
 
   const handleLogout = async () => {
@@ -194,6 +257,41 @@ export default function SettingsPanel() {
 
             <label style={{ fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", display: "block", marginBottom: "8px" }}>Correo</label>
             <input type="email" value={email} disabled style={{ ...inputStyle, opacity: 0.5, cursor: "not-allowed" }} />
+
+            <div style={{ marginTop: "20px", marginBottom: "12px", fontSize: "11px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)" }}>Foto de referencia</div>
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ width: "96px", height: "96px", borderRadius: "18px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {referencePhoto ? (
+                  <Image src={referencePhoto} alt="Foto de referencia" width={96} height={96} style={{ objectFit: "cover", borderRadius: "18px" }} />
+                ) : (
+                  <div style={{ color: "var(--text-muted)", fontSize: "12px", textAlign: "center", padding: "12px" }}>Sin foto</div>
+                )}
+              </div>
+              <div style={{ flex: "1 1 220px", minWidth: "220px" }}>
+                <div style={{ marginBottom: "10px", fontSize: "13px", color: "var(--text-primary)", lineHeight: 1.5 }}>
+                  Sube una foto tuya sin fondo. La IA usará esta referencia para que el maniquí tenga una cara y rasgos similares a los tuyos.
+                </div>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "12px 16px", borderRadius: "10px", background: "var(--gold)", color: "var(--surface)", fontSize: "12px", cursor: uploadingPhoto ? "not-allowed" : "pointer" }}>
+                    {uploadingPhoto ? "Subiendo..." : "Subir foto"}
+                    <input type="file" accept="image/*" disabled={uploadingPhoto} onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      handleReferencePhotoUpload(file);
+                      e.target.value = "";
+                    }} style={{ display: "none" }} />
+                  </label>
+                  {referencePhoto && (
+                    <button type="button" onClick={handleClearReferencePhoto} style={{ padding: "12px 16px", borderRadius: "10px", border: "1px solid var(--border-subtle)", background: "transparent", color: "var(--text-primary)", fontSize: "12px", cursor: "pointer" }}>
+                      Eliminar foto
+                    </button>
+                  )}
+                </div>
+                {photoError && (
+                  <div style={{ marginTop: "10px", color: "#FCA5A5", fontSize: "12px" }}>{photoError}</div>
+                )}
+              </div>
+            </div>
 
             {success && (
               <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "8px", padding: "10px 14px", color: "#86EFAC", fontSize: "13px", marginBottom: "12px" }}>

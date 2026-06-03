@@ -54,6 +54,7 @@ export default function Home() {
   const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
   const [draftOutfitItems, setDraftOutfitItems] = useState<OutfitItemIds>({});
   const [outfits, setOutfits] = useState<Outfit[]>([]);
+  const [referencePhotoUrl, setReferencePhotoUrl] = useState("");
 
   const highlightedItemIds = useMemo(() => {
     const ids = new Set<string | number>();
@@ -151,6 +152,26 @@ export default function Home() {
     };
 
     void bootstrap();
+  }, []);
+
+  useEffect(() => {
+    const loadReferencePhoto = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const photoFromMetadata = user.user_metadata?.mannequin_photo_url;
+      if (typeof photoFromMetadata === "string" && photoFromMetadata) {
+        setReferencePhotoUrl(photoFromMetadata);
+        return;
+      }
+
+      const savedPhoto = localStorage.getItem("mannequin-reference-photo") || "";
+      if (savedPhoto) {
+        setReferencePhotoUrl(savedPhoto);
+      }
+    };
+
+    void loadReferencePhoto();
   }, []);
 
   // ── SUBIR IMAGEN A STORAGE ──
@@ -682,6 +703,7 @@ export default function Home() {
                   clothes={clothes}
                   selectedOutfit={selectedOutfit ?? (Object.values(draftOutfitItems).some(Boolean) ? { id: "draft-preview", user_id: null, title: "Vista previa", description: "Outfit en creación", item_ids: draftOutfitItems } : null)}
                   selectedClothing={null}
+                  referencePhotoUrl={referencePhotoUrl}
                 />
               </div>
           </>
@@ -717,7 +739,10 @@ export default function Home() {
               <h1 style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "32px" : "48px", fontWeight: 300, color: "var(--text-primary)" }}>Ajustes</h1>
               <div style={{ marginTop: "20px", height: "1px", background: "linear-gradient(90deg, var(--gold) 0%, rgba(201,168,76,0.1) 40%, transparent 100%)" }} />
             </div>
-            <SettingsPanel />
+            <SettingsPanel
+              referencePhotoUrl={referencePhotoUrl}
+              onReferencePhotoChange={setReferencePhotoUrl}
+            />
           </>
         )}
 
