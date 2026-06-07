@@ -1,5 +1,7 @@
 "use client";
 
+import { Plus } from "lucide-react";
+
 export default function AddClothingButton({
   onClick,
 }: {
@@ -12,16 +14,16 @@ export default function AddClothingButton({
         position: "fixed",
         bottom: "32px",
         right: "32px",
-        width: "56px",
-        height: "56px",
-        borderRadius: "50%",
-        background: "var(--gold)",
-        border: "none",
+        width: "62px",
+        height: "62px",
+        borderRadius: "18px",
+        background: "var(--gold-gradient)",
+        border: "1px solid rgba(255,255,255,0.18)",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: "0 8px 32px rgba(201,168,76,0.35)",
+        boxShadow: "0 14px 42px rgba(201,168,76,0.34), 0 0 0 8px rgba(201,168,76,0.06)",
         transition: "all 0.25s ease",
         zIndex: 100,
         color: "var(--surface)",
@@ -31,17 +33,17 @@ export default function AddClothingButton({
       }}
       onMouseEnter={(e) => {
         const el = e.currentTarget as HTMLButtonElement;
-        el.style.transform = "scale(1.1)";
-        el.style.boxShadow = "0 12px 48px rgba(201,168,76,0.5)";
+        el.style.transform = "translateY(-3px) scale(1.04)";
+        el.style.boxShadow = "0 18px 56px rgba(201,168,76,0.52), 0 0 0 10px rgba(201,168,76,0.08)";
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLButtonElement;
-        el.style.transform = "scale(1)";
-        el.style.boxShadow = "0 8px 32px rgba(201,168,76,0.35)";
+        el.style.transform = "translateY(0) scale(1)";
+        el.style.boxShadow = "0 14px 42px rgba(201,168,76,0.34), 0 0 0 8px rgba(201,168,76,0.06)";
       }}
       aria-label="Agregar prenda"
     >
-      +
+      <Plus size={28} strokeWidth={1.8} />
     </button>
   );
 }

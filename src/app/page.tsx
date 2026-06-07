@@ -382,7 +382,16 @@ export default function Home() {
         {/* ===== ARMARIO ===== */}
         {activeTab === "armario" && (
           <>
-            <div style={{ marginBottom: isMobile ? "32px" : "52px" }}>
+            <div
+              style={{
+                marginBottom: isMobile ? "34px" : "56px",
+                padding: isMobile ? "22px" : "30px 34px",
+                borderRadius: "8px",
+                border: "1px solid var(--border-glass)",
+                background: "linear-gradient(135deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012)), rgba(17,17,18,0.62)",
+                boxShadow: "0 22px 80px rgba(0,0,0,0.22)",
+              }}
+            >
               <div 
                 style={{ 
                   display: "flex", 
@@ -405,20 +414,20 @@ export default function Home() {
                 </div>
                 
                 {/* Panel de estadísticas autoajustable */}
-                <div style={{ display: "flex", gap: isMobile ? "20px" : "32px", paddingBottom: "4px", width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-end" }}>
+                <div style={{ display: "flex", gap: isMobile ? "10px" : "12px", paddingBottom: "4px", width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-end" }}>
                   {[
                     { num: clothes.length, label: "Prendas" },
                     { num: categories.length, label: "Categorías" },
                     { num: 0, label: "Outfits" },
                   ].map((stat) => (
-                    <div key={stat.label} style={{ textAlign: isMobile ? "left" : "right" }}>
+                    <div key={stat.label} style={{ textAlign: isMobile ? "left" : "right", minWidth: isMobile ? "0" : "92px", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--border-subtle)", background: "rgba(255,255,255,0.025)" }}>
                       <div style={{ fontFamily: "var(--font-display)", fontSize: isMobile ? "24px" : "32px", fontWeight: 300, color: "var(--gold)", lineHeight: 1 }}>{stat.num}</div>
                       <div style={{ fontSize: "9px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: "4px" }}>{stat.label}</div>
                     </div>
                   ))}
                 </div>
               </div>
-              <div style={{ marginTop: "24px", height: "1px", background: "linear-gradient(90deg, var(--gold) 0%, rgba(201,168,76,0.1) 40%, transparent 100%)" }} />
+              <div className="soft-divider" style={{ marginTop: "24px", height: "1px" }} />
             </div>
 
             {loading ? (
