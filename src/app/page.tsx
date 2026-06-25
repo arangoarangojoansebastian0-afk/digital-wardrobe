@@ -12,6 +12,7 @@ import MannequinViewer from "./components/MannequinViewer";
 import OutfitsPanel from "./components/OutfitsPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import StylistChat from "./components/StylistChat";
+import OutfitAvatarStudio from "./components/OutfitAvatarStudio";
 
 import { supabase } from "@/lib/supabase";
 import type { ClothingAnalysis, ClothingItem, ClothingSlot, Outfit, OutfitItemIds } from "@/types/clothing";
@@ -663,7 +664,8 @@ export default function Home() {
 
         {/* ===== OUTFITS ===== */}
         {activeTab === "outfits" && (
-          <>
+          <div style={{ display: "grid", gap: "28px" }}>
+            <OutfitAvatarStudio clothes={clothes} />
             <OutfitsPanel
               clothes={clothes}
               outfits={outfits}
@@ -706,7 +708,7 @@ export default function Home() {
                   referencePhotoUrl={referencePhotoUrl}
                 />
               </div>
-          </>
+          </div>
         )}
 
         {/* ===== IA STYLIST ===== */}

@@ -23,7 +23,8 @@ export default function AuthPage() {
       return;
     }
 
-    if (mode === "register") {
+    try {
+      if (mode === "register") {
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -39,7 +40,12 @@ export default function AuthPage() {
       if (error) setError("Correo o contraseña incorrectos");
     }
 
-    setLoading(false);
+    } catch (err) {
+      console.error("Supabase auth network error:", err);
+      setError("No se pudo conectar con Supabase. Revisa el URL del proyecto, la clave publica y tu conexion.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogle = async () => {
