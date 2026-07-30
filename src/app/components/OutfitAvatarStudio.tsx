@@ -47,9 +47,9 @@ const OUTFIT_STORAGE_KEY = "current-outfit-layers";
 
 const fallbackAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='720' viewBox='0 0 360 720'%3E%3Crect width='360' height='720' fill='%2318181A'/%3E%3Cg fill='%232C2C2F' stroke='%23C9A84C' stroke-opacity='.28' stroke-width='2'%3E%3Cellipse cx='180' cy='72' rx='42' ry='48'/%3E%3Cpath d='M128 132 C150 116 210 116 232 132 L254 346 C260 404 236 456 224 520 L206 690 L174 690 L166 522 L154 690 L122 690 L136 520 C124 458 100 404 106 346 Z'/%3E%3Cpath d='M126 150 C78 210 70 300 84 392' fill='none'/%3E%3Cpath d='M234 150 C282 210 290 300 276 392' fill='none'/%3E%3C/g%3E%3C/svg%3E";
 
-function getPlacement(item: ClothingItem) {
+function getSlot(item: ClothingItem) {
   const category = `${item.category || ""} ${item.outfit_slot || ""}`.toLowerCase();
-  const slot = item.outfit_slot || (
+  return item.outfit_slot || (
     category.includes("zapato") ? "shoes" :
     category.includes("pantal") || category.includes("falda") ? "lower" :
     category.includes("vestido") ? "dress" :
@@ -57,14 +57,178 @@ function getPlacement(item: ClothingItem) {
     category.includes("acces") ? "accessory" :
     "upper"
   );
+}
+
+// Bandas horizontales (0 = arriba de la prenda, 1 = abajo) usadas para
+// "ajustar" la prenda al cuerpo: cada banda se estira/comprime en ancho
+// según la medida corporal correspondiente (hombros/pecho/cintura/cadera),
+// en vez de escalar la prenda entera de forma pareja. Es una aproximación
+// geométrica (sin IA): no simula pliegues de tela reales, pero hace que
+// una remera le quede angosta a alguien de hombros angostos y ancha a
+// alguien de hombros anchos, por ejemplo.
+type BodyZone = "shoulder" | "chest" | "waist" | "hips";
+type Band = { from: number; to: number; zone: BodyZone };
+
+const BAND_CONFIG: Record<string, Band[]> = {
+  upper: [
+    { from: 0, to: 0.16, zone: "shoulder" },
+    { from: 0.16, to: 0.6, zone: "chest" },
+    { from: 0.6, to: 1, zone: "waist" },
+  ],
+  outer: [
+    { from: 0, to: 0.14, zone: "shoulder" },
+    { from: 0.14, to: 0.55, zone: "chest" },
+    { from: 0.55, to: 1, zone: "waist" },
+  ],
+  dress: [
+    { from: 0, to: 0.14, zone: "shoulder" },
+    { from: 0.14, to: 0.4, zone: "chest" },
+    { from: 0.4, to: 0.66, zone: "waist" },
+    { from: 0.66, to: 1, zone: "hips" },
+  ],
+  lower: [
+    { from: 0, to: 0.35, zone: "waist" },
+    { from: 0.35, to: 1, zone: "hips" },
+  ],
+};
+
+function loadImageElement(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`No se pudo cargar la imagen: ${src}`));
+    img.src = src;
+  });
+}
+
+// Las fotos de producto (flat-lay) suelen traer bastante margen transparente
+// alrededor de la prenda real. Si no se recorta, el "% de ancho" que calcula
+// la app se aplica a esa caja con margen (no a la prenda), y por eso la
+// prenda termina viéndose chica/desalineada respecto al cuerpo. Esta función
+// detecta el recuadro real de píxeles no transparentes y lo devuelve para
+// usarlo como fuente al dibujar, en vez de la imagen completa con margen.
+async function getTrimmedBounds(img: HTMLImageElement): Promise<{ x: number; y: number; w: number; h: number }> {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const full = { x: 0, y: 0, w, h };
+  if (!w || !h) return full;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return full;
+
+  ctx.drawImage(img, 0, 0, w, h);
+
+  let data: ImageData;
+  try {
+    data = ctx.getImageData(0, 0, w, h);
+  } catch {
+    // Imagen de otro dominio sin CORS habilitado: no se puede leer el
+    // canvas, así que se usa la imagen completa sin recortar.
+    return full;
+  }
+
+  const alpha = data.data;
+  const threshold = 12; // ignora casi-transparente / restos de anti-aliasing
+  // Limitamos la cantidad de píxeles muestreados (con salto/stride) para que
+  // esto sea rápido incluso con fotos grandes; no hace falta revisar cada
+  // píxel para encontrar un recuadro aproximado.
+  const maxSamples = 420;
+  const strideX = Math.max(1, Math.floor(w / maxSamples));
+  const strideY = Math.max(1, Math.floor(h / maxSamples));
+
+  let minX = w, minY = h, maxX = 0, maxY = 0;
+  let found = false;
+
+  for (let y = 0; y < h; y += strideY) {
+    for (let x = 0; x < w; x += strideX) {
+      const a = alpha[(y * w + x) * 4 + 3];
+      if (a > threshold) {
+        found = true;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (!found) return full;
+
+  // Un pequeño margen de seguridad (el stride puede saltarse el borde exacto).
+  const pad = Math.max(strideX, strideY);
+  minX = Math.max(0, minX - pad);
+  minY = Math.max(0, minY - pad);
+  maxX = Math.min(w - 1, maxX + pad);
+  maxY = Math.min(h - 1, maxY + pad);
+
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+// Genera una versión de la prenda "ajustada" al cuerpo: recorta la imagen
+// original en bandas horizontales y estira cada una en ancho según la
+// medida corporal de esa zona, dejando una forma final más parecida a un
+// cuerpo real (más angosta en hombros/cintura, más ancha en pecho/cadera,
+// o viceversa) en vez de un rectángulo con proporciones fijas.
+async function buildFittedGarmentImage(
+  src: string,
+  slot: string,
+  scale: Record<BodyZone, number>
+): Promise<string> {
+  const img = await loadImageElement(src);
+  const trim = await getTrimmedBounds(img);
+  const naturalWidth = trim.w || img.naturalWidth || 1;
+  const naturalHeight = trim.h || img.naturalHeight || 1;
+  const wasTrimmed = trim.x !== 0 || trim.y !== 0 || naturalWidth !== (img.naturalWidth || naturalWidth) || naturalHeight !== (img.naturalHeight || naturalHeight);
+
+  const bands = BAND_CONFIG[slot];
+
+  if (!bands) {
+    // Zapatos/accesorios: no se estiran por bandas, pero igual conviene
+    // recortarles el margen transparente para que el tamaño se vea correcto.
+    if (!wasTrimmed) return src;
+    const canvas = document.createElement("canvas");
+    canvas.width = naturalWidth;
+    canvas.height = naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return src;
+    ctx.drawImage(img, trim.x, trim.y, naturalWidth, naturalHeight, 0, 0, naturalWidth, naturalHeight);
+    return canvas.toDataURL("image/png");
+  }
+
+  const maxFactor = Math.max(1, ...bands.map((band) => scale[band.zone] ?? 1)) * 1.08;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(naturalWidth * maxFactor));
+  canvas.height = naturalHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return src;
+
+  for (const band of bands) {
+    const sy = trim.y + Math.round(band.from * naturalHeight);
+    const sh = Math.max(1, Math.round((band.to - band.from) * naturalHeight));
+    const factor = scale[band.zone] ?? 1;
+    const dw = naturalWidth * factor;
+    const dx = (canvas.width - dw) / 2;
+    ctx.drawImage(img, trim.x, sy, naturalWidth, sh, dx, sy - trim.y, dw, sh);
+  }
+
+  return canvas.toDataURL("image/png");
+}
+
+function getPlacement(item: ClothingItem) {
+  const slot = getSlot(item);
 
   const defaults: Record<string, { x: number; y: number; width: number; z: number }> = {
-    upper: { x: 50, y: 35, width: 38, z: 8 },
-    lower: { x: 50, y: 60, width: 36, z: 6 },
-    dress: { x: 50, y: 49, width: 44, z: 9 },
-    outer: { x: 50, y: 37, width: 46, z: 12 },
-    shoes: { x: 50, y: 86, width: 34, z: 10 },
-    accessory: { x: 50, y: 27, width: 24, z: 14 },
+    upper: { x: 50, y: 33, width: 33, z: 8 },
+    lower: { x: 50, y: 68, width: 29, z: 6 },
+    dress: { x: 50, y: 50, width: 40, z: 9 },
+    outer: { x: 50, y: 32, width: 38, z: 12 },
+    shoes: { x: 50, y: 94, width: 24, z: 10 },
+    accessory: { x: 50, y: 15, width: 20, z: 14 },
   };
 
   const base = defaults[slot] || defaults.upper;
@@ -145,6 +309,50 @@ export default function OutfitAvatarStudio({ clothes }: { clothes: ClothingItem[
     () => layers.find((layer) => layer.id === selectedLayerId) || null,
     [layers, selectedLayerId]
   );
+
+  const bodyScale = {
+    shoulder: Math.min(1.22, Math.max(0.82, bodyParams.shoulder_cm / 42)),
+    chest: Math.min(1.2, Math.max(0.82, bodyParams.chest_cm / 92)),
+    waist: Math.min(1.18, Math.max(0.76, bodyParams.waist_cm / 76)),
+    hips: Math.min(1.22, Math.max(0.82, bodyParams.hips_cm / 96)),
+  };
+
+  // Imágenes de cada prenda ya "ajustadas" al cuerpo (ver buildFittedGarmentImage).
+  // Se recalculan solo cuando cambia el set de prendas puestas o las medidas
+  // del cuerpo, NO en cada movimiento de arrastre (eso solo mueve/rota la
+  // imagen ya generada, vía CSS, sin volver a procesar el canvas).
+  const [fittedSrcMap, setFittedSrcMap] = useState<Record<string, string>>({});
+  const layerImageKey = layers.map((layer) => `${layer.id}:${layer.clothing.image || ""}`).join("|");
+  const bodyScaleKey = `${bodyScale.shoulder.toFixed(2)}-${bodyScale.chest.toFixed(2)}-${bodyScale.waist.toFixed(2)}-${bodyScale.hips.toFixed(2)}`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const entries = await Promise.all(
+        layers.map(async (layer) => {
+          if (!layer.clothing.image) return [layer.id, ""] as const;
+          try {
+            const slot = getSlot(layer.clothing);
+            const fitted = await buildFittedGarmentImage(layer.clothing.image, slot, bodyScale);
+            return [layer.id, fitted] as const;
+          } catch {
+            // Si falla (ej. CORS de la imagen), se usa la imagen original sin ajustar.
+            return [layer.id, layer.clothing.image as string] as const;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setFittedSrcMap(Object.fromEntries(entries));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layerImageKey, bodyScaleKey]);
 
   const updateBodyParam = (key: keyof BodyParams, value: string) => {
     setBodyParams((prev) => ({
@@ -290,6 +498,13 @@ export default function OutfitAvatarStudio({ clothes }: { clothes: ClothingItem[
     setAvatar(profileToSave);
   };
 
+  // Antes esto llamaba a /api/avatar/generate (Gemini/Nano Banana) para
+  // "reinterpretar" la foto como un maniquí con IA. Como ese modelo requiere
+  // facturación habilitada en Google, esto rompía todo el flujo del
+  // Visualizador 2D: sin avatar generado, nunca se podía probar ropa.
+  // Ahora se usa directamente la foto subida como fondo del avatar: sin IA,
+  // sin costo, sin depender de ningún servicio externo. La ropa se sigue
+  // superponiendo encima igual que antes (arrastrando las prendas).
   const generateAvatar = async () => {
     setError("");
 
@@ -306,37 +521,23 @@ export default function OutfitAvatarStudio({ clothes }: { clothes: ClothingItem[
     setGenerating(true);
 
     try {
-      const formData = new FormData();
-      formData.append("photo", photoFile);
-      Object.entries(bodyParams).forEach(([key, value]) => formData.append(key, String(value)));
-
-      const response = await fetch("/api/avatar/generate", {
-        method: "POST",
-        body: formData,
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("No se pudo leer la foto."));
+        reader.readAsDataURL(photoFile);
       });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "No se pudo generar el avatar.");
-      }
 
       await saveProfile({
-        avatar_image: data.image,
+        avatar_image: dataUrl,
         reference_photo: photoPreview,
         body_params: bodyParams,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo generar el avatar.");
+      setError(err instanceof Error ? err.message : "No se pudo usar la foto como avatar.");
     } finally {
       setGenerating(false);
     }
-  };
-
-  const bodyScale = {
-    shoulder: Math.min(1.22, Math.max(0.82, bodyParams.shoulder_cm / 42)),
-    chest: Math.min(1.2, Math.max(0.82, bodyParams.chest_cm / 92)),
-    waist: Math.min(1.18, Math.max(0.76, bodyParams.waist_cm / 76)),
-    hips: Math.min(1.22, Math.max(0.82, bodyParams.hips_cm / 96)),
   };
 
   return (
@@ -395,13 +596,31 @@ export default function OutfitAvatarStudio({ clothes }: { clothes: ClothingItem[
             <div style={{ position: "absolute", left: "50%", top: "20%", transform: "translateX(-50%)", width: `${34 * bodyScale.chest}%`, height: "24%", borderRadius: "38% 38% 24% 24%", background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-subtle)" }} />
             <div style={{ position: "absolute", left: "50%", top: "39%", transform: "translateX(-50%)", width: `${25 * bodyScale.waist}%`, height: "13%", borderRadius: "22%", background: "rgba(255,255,255,0.035)", border: "1px solid var(--border-subtle)" }} />
             <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translateX(-50%)", width: `${34 * bodyScale.hips}%`, height: "13%", borderRadius: "34%", background: "rgba(229,140,159,0.07)", border: "1px solid rgba(229,140,159,0.16)" }} />
-            <img src={avatar?.avatar_image || fallbackAvatar} alt="Avatar" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", opacity: avatar ? 0.82 : 0.58, pointerEvents: "none", mixBlendMode: "screen" }} />
+            <img
+              src={avatar?.avatar_image || fallbackAvatar}
+              alt="Avatar"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                opacity: avatar ? 0.95 : 0.9,
+                pointerEvents: "none",
+                // El blend "screen" solo tiene sentido sobre una foto real
+                // (para integrarla con las zonas translúcidas de fondo).
+                // Sobre la silueta SVG de respaldo (colores oscuros) ese
+                // blend la hace prácticamente invisible, así que ahí se usa
+                // mezcla normal para que el maniquí se vea siempre.
+                mixBlendMode: avatar?.avatar_image ? "screen" : "normal",
+              }}
+            />
 
             {layers.map((layer) => (
               layer.clothing.image ? (
                 <img
                   key={layer.id}
-                  src={layer.clothing.image}
+                  src={fittedSrcMap[layer.id] || layer.clothing.image}
                   alt={layer.clothing.title || ""}
                   onPointerDown={(event) => handlePointerDown(event, layer)}
                   onPointerMove={handlePointerMove}
@@ -480,7 +699,7 @@ export default function OutfitAvatarStudio({ clothes }: { clothes: ClothingItem[
 
         <button onClick={generateAvatar} disabled={generating || !photoFile || !isBodyReady} style={{ width: "100%", marginTop: "14px", border: "none", borderRadius: "10px", padding: "13px", background: generating || !photoFile || !isBodyReady ? "var(--surface-4)" : "var(--gold-gradient)", color: generating || !photoFile || !isBodyReady ? "var(--text-muted)" : "var(--surface)", cursor: generating ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontWeight: 600 }}>
           {generating ? <RefreshCcw size={16} /> : <Wand2 size={16} />}
-          {generating ? "Generando avatar..." : "Generar avatar"}
+          {generating ? "Guardando..." : "Usar esta foto como avatar"}
         </button>
 
         {selectedLayer && (
